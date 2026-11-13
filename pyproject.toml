@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orchid-oe"
-version = "0.1.0"
+version = "0.2.0"
 description = "ORCHID: multiscale charge & exciton transport simulator for organic semiconductors, OLEDs and organic solar cells (KMC, master equation, EGDM, drift-diffusion, transfer-matrix optics)"
 readme = "README.md"
 license = {text = "MIT"}
@@ -18,7 +18,12 @@ classifiers = ["Programming Language :: Python :: 3", "License :: OSI Approved :
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.5"]
-dev = ["pytest>=7", "matplotlib>=3.5"]
+mpi = ["mpi4py>=3.1"]
+amg = ["pyamg>=5"]
+gpu = ["cupy-cuda12x>=13"]
+validate = ["matplotlib>=3.5", "tmm>=0.2"]
+all = ["matplotlib>=3.5", "mpi4py>=3.1", "pyamg>=5", "tmm>=0.2"]
+dev = ["pytest>=7", "matplotlib>=3.5", "pyamg>=5", "tmm>=0.2"]
 
 [project.scripts]
 orchid = "orchid.cli:main"

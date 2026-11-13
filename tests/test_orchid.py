@@ -188,3 +188,145 @@ def test_grid_and_zoom_search():
     pts = latin_hypercube({"a": (0, 1)}, 10)
     assert sorted(int(p["a"] * 10) for p in pts) == list(range(10))
     assert log_rmse([1, 10], [1, 10]) == 0
+
+
+# ================================================================= v0.2 modules
+from orchid.electrostatics import madelung_nacl, image_self_energy, ewald_lattice_green
+from orchid.kmc import mobility_interacting
+from orchid.device_kmc import DeviceKMC, Layer
+from orchid.parallel import parallel_map, ensemble
+from orchid._fenwick import fw_build, fw_add, fw_find, fw_total
+from orchid import roadmap
+
+
+def test_madelung_constant():
+    assert abs(madelung_nacl() - 1.747564594633) < 1e-7
+
+
+def test_image_charge_single_plane_limit():
+    z = np.array([0.5e-9, 1e-9])
+    U = image_self_energy(z, 1e-6, 3.5)
+    ref = -q / (16 * np.pi * eps0 * 3.5 * z)
+    assert np.allclose(U, ref, rtol=1e-3)
+
+
+def test_lattice_green_symmetry():
+    G = ewald_lattice_green((8, 8, 8))
+    assert abs(G[1, 0, 0] - G[0, 1, 0]) < 1e-10 and abs(G[1, 0, 0] - G[7, 0, 0]) < 1e-10
+    assert G[1, 0, 0] > G[2, 0, 0] > G[3, 0, 0]
+
+
+def test_fenwick_tree():
+    rng = np.random.default_rng(0)
+    v = rng.random(37)
+    t = np.zeros(37)
+    fw_build(t, v)
+    assert abs(fw_total(t) - v.sum()) < 1e-12
+    fw_add(t, 5, 2.0)
+    v[5] += 2.0
+    c = np.cumsum(v)
+    for u in rng.random(50) * v.sum():
+        assert fw_find(t, u) == np.searchsorted(c, u, side="right")
+
+
+def test_fast_interacting_matches_dense():
+    T = SIG / (kB_eV * 2.5)
+    lat = Lattice(12, a=1.6e-9, seed=8).set_disorder(SIG)
+    f = [mobility_interacting(lat, T, 0.1 * SIG, 0.02, n_eq=20000, n_meas=150000,
+                              engine="fast", seed=s) for s in (1, 2, 3)]
+    d = [mobility_interacting(lat, T, 0.1 * SIG, 0.02, n_eq=20000, n_meas=150000,
+                              engine="dense", seed=s) for s in (1, 2, 3)]
+    assert abs(np.mean(f) / np.mean(d) - 1) < 0.25
+
+
+def test_device_kmc_zero_bias_equilibrium():
+    d = DeviceKMC([Layer(8, HOMO=-5.2, LUMO=-2.0)], Lx=10, Ly=10, W_anode=5.2,
+                  W_cathode=4.0, coulomb="full", seed=0)
+    J0 = np.mean([d.run(0.0, n_eq=20000, n_meas=100000, seed=s)["J"] for s in range(3)])
+    J1 = d.run(2.0, n_eq=20000, n_meas=100000)["J"]
+    assert J1 > 0 and abs(J0) < 0.05 * J1
+
+
+def test_device_kmc_bipolar_recombines():
+    lay = [Layer(6, HOMO=-5.2, LUMO=-2.6)]
+    d = DeviceKMC(lay, Lx=8, Ly=8, W_anode=5.1, W_cathode=2.7, coulomb="full", seed=1)
+    r = d.run(3.5, n_eq=20000, n_meas=80000)
+    assert r["J"] > 0 and r["rec_rate"] > 0 and 0 < r["gamma_b"] <= 1.05
+
+
+def test_transient_celiv_high_ramp():
+    from orchid.transient import celiv
+    mu = 1e-8
+    d = Device(L=100e-9, N=101, Eg=2.0, phi_anode_p=1.0, phi_cathode_n=1.0, mu_n=1e-14,
+               mu_p=mu, recombination=False, grid_beta=2.0)
+    A = 1e8
+    t_est = 1e-7 * np.sqrt(2 / (3 * mu * A))
+    r = celiv(d, A=A, t_end=12 * t_est, n_t=200, G_pulse=1e30, t_pulse=1e-10)
+    assert abs(r["mu_juska"] / mu - 1) < 0.12
+
+
+def test_transient_relaxes_to_steady_state():
+    from orchid.transient import step_response
+    d = Device(L=100e-9, N=81, Eg=1.2, mu_n=1e-8, mu_p=1e-8, G=1e27)
+    ss = d.jv(np.array([0.3]))["J"][0]
+    r = step_response(d, np.concatenate([[0], np.geomspace(1e-9, 1e-3, 60)]),
+                      lambda t: 0.0 if t <= 0 else 0.3, V0=0.0)
+    assert abs(r["J"][-1] / ss - 1) < 1e-3
+
+
+def _sq(x):
+    return x * x
+
+
+def test_parallel_map_and_ensemble():
+    assert parallel_map(_sq, range(6)) == [0, 1, 4, 9, 16, 25]
+    assert parallel_map(_sq, range(6), backend="process", workers=2) == [0, 1, 4, 9, 16, 25]
+    m, se, v = ensemble(float, [1, 2, 3])
+    assert m == 2.0
+
+
+def test_me_amg_matches_jacobi():
+    T = SIG / (kB_eV * 3.0)
+    lat = Lattice(16, a=1.6e-9, seed=9).set_disorder(SIG)
+    a_ = me_linear_response(lat, T, 1e-4, alpha=10.0, precond="amg")[0]
+    b_ = me_linear_response(lat, T, 1e-4, alpha=10.0, precond="jacobi")[0]
+    assert abs(a_ / b_ - 1) < 1e-6
+
+
+def test_gpu_kernel_in_cuda_simulator():
+    import subprocess, sys, os
+    code = ("import numpy as np\n"
+            "from orchid.lattice import Lattice\n"
+            "from orchid.gpu import kmc_independent_gpu\n"
+            "from orchid.kmc import kmc_independent\n"
+            "lat=Lattice(6,a=1.6e-9,seed=1).set_disorder(0.03)\n"
+            "W=lat.rates(300,(0.01,0,0),alpha=10.)\n"
+            "g=kmc_independent_gpu(lat,W,n_carriers=16,n_eq=50,n_meas=800,threads_per_block=16)\n"
+            "c=kmc_independent(lat,W,64,50,3000)\n"
+            "vg=g['dx'].sum()/g['dt'].sum(); vc=c['dx'].sum()/c['dt'].sum()\n"
+            "print(vg/vc)\n")
+    env = dict(os.environ, NUMBA_ENABLE_CUDASIM="1",
+               PYTHONPATH=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    out = subprocess.run([sys.executable, "-W", "ignore", "-c", code], env=env,
+                         capture_output=True, text=True, timeout=600)
+    ratio = float(out.stdout.strip().splitlines()[-1])
+    assert 0.6 < ratio < 1.6
+
+
+def test_roadmap_done_items_importable():
+    import importlib
+    for r in roadmap.ROADMAP:
+        if r["status"] == "done":
+            importlib.import_module(r["module"])
+    d, n = roadmap.progress()
+    assert 0 < d < n
+
+
+def test_device_kmc_electron_hole_symmetry():
+    """Mirror-image hole-only and electron-only devices carry equal current."""
+    common = dict(Lx=10, Ly=10, coulomb="full")
+    dh = DeviceKMC([Layer(8, HOMO=-5.2, LUMO=-2.0)], W_anode=5.2, W_cathode=4.0, seed=4, **common)
+    de = DeviceKMC([Layer(8, HOMO=-6.0, LUMO=-2.8)], W_anode=4.0, W_cathode=2.8, seed=4, **common)
+    Jh = np.mean([dh.run(2.5, n_eq=20000, n_meas=80000, seed=s)["J"] for s in (1, 2)])
+    Je = np.mean([de.run(2.5, n_eq=20000, n_meas=80000, seed=s)["J"] for s in (1, 2)])
+    assert abs(Jh / Je - 1) < 0.35

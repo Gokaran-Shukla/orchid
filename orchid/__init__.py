@@ -17,7 +17,15 @@ diodes):
     optics           transfer-matrix optics, generation profiles, outcoupling
     devices          OLED and OPV workflows (EQE, roll-off, J-V, PCE)
     search           exhaustive grid / zoom search, Latin hypercube, log-RMSE
+    device_kmc       full 3D device KMC (electrodes, injection, images, Coulomb,
+                     excitons, multilayer OLED stacks)
+    electrostatics   Ewald sums, periodic lattice Green's function, image charges
+    transient        transient DD: CELIV, TPV, TPC, arbitrary V(t), G(t)
+    parallel         MPI x processes x Numba-thread hybrid parallel layer
+    gpu              CUDA KMC kernel, CuPy master-equation solver
+    roadmap          machine-readable development roadmap
 """
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = ["rates", "lattice", "kmc", "master_equation", "models",
-           "drift_diffusion", "exciton", "optics", "devices", "search"]
+           "drift_diffusion", "exciton", "optics", "devices", "search", "device_kmc",
+           "electrostatics", "transient", "parallel", "gpu", "roadmap"]

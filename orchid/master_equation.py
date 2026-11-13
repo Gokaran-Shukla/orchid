@@ -42,9 +42,14 @@ def fermi_level_sample(E, n_frac, T):
     return brentq(g, E.min() - 60 * kT, E.max() + 60 * kT)
 
 
-def me_linear_response(lat, T, n_frac, rtol=1e-10, maxiter=20000, **rate_kw):
+def me_linear_response(lat, T, n_frac, rtol=1e-10, maxiter=20000,
+                       precond="auto", backend="cpu", **rate_kw):
     """Ohmic mobility [m^2/Vs] at occupied fraction ``n_frac``.
 
+    precond : "jacobi" | "amg" (pyamg smoothed aggregation) | "auto"
+        AMG cuts CG iterations by 10-20x and is chosen automatically for
+        N > 2e5 sites when pyamg is installed.
+    backend : "cpu" (scipy) | "gpu" (CuPy CG, Jacobi preconditioner)
     Returns (mu, info) where info has Fermi level and solver iterations.
     """
     kT = kB_eV * T
@@ -67,12 +72,32 @@ def me_linear_response(lat, T, n_frac, rtol=1e-10, maxiter=20000, **rate_kw):
     A[0, 0] = 1.0
     A = A.tocsr()
     b[0] = 0.0
-    dinv = 1.0 / A.diagonal()
-    Pc = spla.LinearOperator((N, N), matvec=lambda v: dinv * v)
+    # rescale for conditioning (solution of A eta = b is scale invariant)
+    sc = 1.0 / A.diagonal().max()
+    A = A * sc
+    b = b * sc
     it = [0]
+
     def cb(_):
         it[0] += 1
-    eta, info = spla.cg(A, b, rtol=rtol, maxiter=maxiter, M=Pc, callback=cb)
+    if backend == "gpu":
+        from .gpu import cg_solve_gpu
+        eta, info = cg_solve_gpu(A, b, rtol=rtol, maxiter=maxiter)
+    else:
+        use_amg = precond == "amg"
+        if precond == "auto":
+            try:
+                import pyamg  # noqa: F401
+                use_amg = N > 200000
+            except Exception:
+                use_amg = False
+        if use_amg:
+            import pyamg
+            Pc = pyamg.smoothed_aggregation_solver(A, symmetry="symmetric").aspreconditioner()
+        else:
+            dinv = 1.0 / A.diagonal()
+            Pc = spla.LinearOperator((N, N), matvec=lambda v: dinv * v)
+        eta, info = spla.cg(A, b, rtol=rtol, maxiter=maxiter, M=Pc, callback=cb)
     I = (G / kT) * (eta[:, None] - eta[lat.nbr] + F * dx)  # particle current i->j
     v = 0.5 * (I * dx).sum() / f.sum()                       # a/s per carrier, per (eV/a)
     mu = v * lat.a ** 2                                      # m^2/(V s)
@@ -110,3 +135,28 @@ def me_nonlinear(lat, T, n_frac, F_red, tol=1e-9, maxiter=200000, mix=1.0,
     v = 0.5 * (I * dx).sum() / p.sum()
     mu = v * lat.a ** 2 / F_red
     return mu, dict(p=p, iterations=k + 1, residual=err)
+
+
+def finite_size_extrapolation(make_lattice, sizes, T, n_frac, seeds=(0, 1, 2),
+                              backend="auto", workers=None, **rate_kw):
+    """Mobility vs box size with disorder averaging, and an L -> infinity
+    estimate from a linear fit of ln(mu) against 1/L.
+
+    ``make_lattice(L, seed)`` must return a Lattice with energies set.
+    Every (L, seed) pair is an independent task for :func:`orchid.parallel.parallel_map`
+    (processes or MPI ranks). Returns dict(L, mu_mean, mu_se, mu_inf).
+    """
+    from .parallel import parallel_map
+    tasks = [(L, s) for L in sizes for s in seeds]
+    vals = parallel_map(_fs_task, [(make_lattice, L, s, T, n_frac, rate_kw) for L, s in tasks],
+                        backend=backend, workers=workers)
+    mu = np.array(vals).reshape(len(sizes), len(seeds))
+    m = mu.mean(1)
+    se = mu.std(1, ddof=1) / np.sqrt(len(seeds)) if len(seeds) > 1 else np.zeros(len(sizes))
+    c = np.polyfit(1.0 / np.asarray(sizes, float), np.log(m), 1)
+    return dict(L=np.asarray(sizes), mu_mean=m, mu_se=se, mu_inf=float(np.exp(c[1])))
+
+
+def _fs_task(args):
+    make_lattice, L, s, T, n_frac, kw = args
+    return me_linear_response(make_lattice(L, s), T, n_frac, **kw)[0]

@@ -264,10 +264,15 @@ def _run_interacting(nbr, dxyz, energy, Wbare_pref, dEb_field, occ, pos,
 
 def mobility_interacting(lat, T, F_red, density, n_eq=100000, n_meas=300000,
                          coulomb=False, eps_r=3.5, r_coul=4.0, seed=11,
-                         kind="ma", nu0=1e12, alpha=10.0, J0=0.01, lam=0.2):
+                         kind="ma", nu0=1e12, alpha=10.0, J0=0.01, lam=0.2,
+                         engine="fast"):
     """Finite-density mobility (m^2/Vs) with exclusion and optional Coulomb.
 
     ``density`` is the fraction of occupied sites (p a^3 in EGDM notation).
+    ``engine="fast"`` (default) uses incremental rate updates and a Fenwick
+    tree: cost per hop O(log N_c + local carriers), independent of the total
+    number of carriers. ``engine="dense"`` recomputes every rate each step
+    (O(N_c M), reference implementation).
     """
     from .constants import kB_eV, eps0, hbar_eVs
     from .lattice import neighbour_offsets
@@ -293,6 +298,16 @@ def mobility_interacting(lat, T, F_red, density, n_eq=100000, n_meas=300000,
         if coulomb else lat.offsets.copy()
     r = np.sqrt((st ** 2).sum(1)) * lat.a
     V = q / (4 * np.pi * eps0 * eps_r * r) if coulomb else np.zeros(len(st))
+    if engine == "fast":
+        rc_upd = (r_coul + lat.rc) if coulomb else lat.rc
+        upd = neighbour_offsets(rc_upd).astype(np.int64)
+        dx, dt = _run_interacting_fast(lat.nbr, lat.disp, pref, dEb, occ, pos,
+                                       st.astype(np.int64), V, upd,
+                                       np.array(lat.shape, dtype=np.int64),
+                                       int(n_eq), int(n_meas), kT, bool(coulomb),
+                                       rk, lam, seed, 20000)
+        F = F_red / lat.a
+        return dx * lat.a / (F * dt * nc)
     dx, dt = _run_interacting(lat.nbr, lat.disp, lat.energy, pref, dEb, occ,
                               pos, st.astype(np.int64), V,
                               np.array(lat.shape, dtype=np.int64), int(n_eq),
@@ -300,3 +315,133 @@ def mobility_interacting(lat, T, F_red, density, n_eq=100000, n_meas=300000,
     F = F_red / lat.a
     # total current = sum of displacements; mobility per carrier
     return dx * lat.a / (F * dt * nc)
+
+
+# ----------------------------------------------------------------------------
+# fast interacting engine: incremental rate updates + Fenwick-tree selection
+# ----------------------------------------------------------------------------
+from ._fenwick import fw_build, fw_add, fw_total, fw_find  # noqa: E402
+
+
+@njit(cache=True)
+def _site_index(ix, iy, iz, Lx, Ly, Lz):
+    return ((ix % Lx) * Ly + (iy % Ly)) * Lz + (iz % Lz)
+
+
+@njit(cache=True)
+def _row(c, pos, nbr, occ, phi, dEb, pref, stencil_V, kT, use_coul, rate_kind,
+         lam, rates):
+    s = pos[c]
+    M = nbr.shape[1]
+    tot = 0.0
+    for m in range(M):
+        j = nbr[s, m]
+        if occ[j]:
+            rates[c, m] = 0.0
+            continue
+        dE = dEb[s, m]
+        if use_coul:
+            dE += phi[j] - phi[s] - stencil_V[m]
+        if rate_kind == 0:
+            w = pref[s, m]
+            if dE > 0:
+                w *= np.exp(-dE / kT)
+        else:
+            w = pref[s, m] * np.exp(-(dE + lam) ** 2 / (4 * lam * kT))
+        rates[c, m] = w
+        tot += w
+    return tot
+
+
+@njit(cache=True)
+def _run_interacting_fast(nbr, dxyz, pref, dEb, occ, pos, stencil, stencil_V,
+                          upd, shape, n_eq, n_meas, kT, use_coul, rate_kind,
+                          lam, seed, rebuild_every):
+    np.random.seed(seed)
+    N, M = nbr.shape
+    nc = pos.shape[0]
+    Lx, Ly, Lz = shape[0], shape[1], shape[2]
+    who = -np.ones(N, dtype=np.int64)
+    for c in range(nc):
+        who[pos[c]] = c
+    phi = np.zeros(N)
+    ns = stencil.shape[0]
+    if use_coul:
+        for c in range(nc):
+            s = pos[c]
+            ix = s // (Ly * Lz)
+            iy = (s // Lz) % Ly
+            iz = s % Lz
+            for k in range(ns):
+                phi[_site_index(ix + stencil[k, 0], iy + stencil[k, 1],
+                                iz + stencil[k, 2], Lx, Ly, Lz)] += stencil_V[k]
+    rates = np.zeros((nc, M))
+    rtot = np.zeros(nc)
+    for c in range(nc):
+        rtot[c] = _row(c, pos, nbr, occ, phi, dEb, pref, stencil_V, kT, use_coul,
+                       rate_kind, lam, rates)
+    tree = np.zeros(nc)
+    fw_build(tree, rtot)
+    nu = upd.shape[0]
+    t = 0.0
+    xd = 0.0
+    x0 = 0.0
+    t0 = 0.0
+    for step in range(n_eq + n_meas):
+        if step == n_eq:
+            x0 = xd
+            t0 = t
+        if step % rebuild_every == 0:
+            fw_build(tree, rtot)
+        R = fw_total(tree)
+        if R <= 0:
+            break
+        t += -np.log(1.0 - np.random.random()) / R
+        u = np.random.random() * R
+        cc = fw_find(tree, u)
+        if rtot[cc] <= 0:
+            continue
+        u2 = np.random.random() * rtot[cc]
+        mm = 0
+        acc = rates[cc, 0]
+        while acc < u2 and mm < M - 1:
+            mm += 1
+            acc += rates[cc, mm]
+        s = pos[cc]
+        j = nbr[s, mm]
+        occ[s] = False
+        occ[j] = True
+        who[s] = -1
+        who[j] = cc
+        pos[cc] = j
+        xd += dxyz[s, mm, 0]
+        if use_coul:
+            for side in range(2):
+                site = s if side == 0 else j
+                sg = -1.0 if side == 0 else 1.0
+                ix = site // (Ly * Lz)
+                iy = (site // Lz) % Ly
+                iz = site % Lz
+                for k in range(ns):
+                    phi[_site_index(ix + stencil[k, 0], iy + stencil[k, 1],
+                                    iz + stencil[k, 2], Lx, Ly, Lz)] += sg * stencil_V[k]
+        # refresh the moved carrier and every carrier whose rates changed
+        new = _row(cc, pos, nbr, occ, phi, dEb, pref, stencil_V, kT, use_coul,
+                   rate_kind, lam, rates)
+        fw_add(tree, cc, new - rtot[cc])
+        rtot[cc] = new
+        for side in range(2):
+            site = s if side == 0 else j
+            ix = site // (Ly * Lz)
+            iy = (site // Lz) % Ly
+            iz = site % Lz
+            for k in range(nu):
+                kk = _site_index(ix + upd[k, 0], iy + upd[k, 1], iz + upd[k, 2],
+                                 Lx, Ly, Lz)
+                c2 = who[kk]
+                if c2 >= 0 and c2 != cc:
+                    new = _row(c2, pos, nbr, occ, phi, dEb, pref, stencil_V, kT,
+                               use_coul, rate_kind, lam, rates)
+                    fw_add(tree, c2, new - rtot[c2])
+                    rtot[c2] = new
+    return xd - x0, t - t0

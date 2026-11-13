@@ -5,6 +5,8 @@ Commands
 mobility   master-equation / KMC mobility of a Gaussian-disordered lattice
 jv         drift-diffusion J-V of a single-layer diode (dark or illuminated)
 egdm       evaluate the EGDM / GDM analytical models
+roadmap    print the development roadmap (done / planned)
+parallel   show MPI ranks, threads and GPU availability
 info       print module overview
 """
 import argparse
@@ -97,6 +99,12 @@ def main(argv=None):
     e.add_argument("--a", type=float, default=1.6, help="nm")
     e.add_argument("--nu0", type=float, default=1e12)
     e.set_defaults(f=_egdm)
+    r = sub.add_parser("roadmap", help="print the development roadmap")
+    r.add_argument("--version", default=None)
+    r.set_defaults(f=lambda a: (print(__import__("orchid.roadmap", fromlist=["x"]).summary(a.version)),
+                                print("progress: %d/%d done" % __import__("orchid.roadmap", fromlist=["x"]).progress())))
+    pz = sub.add_parser("parallel", help="show available parallel resources")
+    pz.set_defaults(f=lambda a: print(json.dumps(__import__("orchid.parallel", fromlist=["x"]).describe(), indent=1)))
     i = sub.add_parser("info")
     i.set_defaults(f=lambda a: print(__import__("orchid").__doc__))
     a = p.parse_args(argv)

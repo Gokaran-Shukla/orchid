@@ -8,12 +8,12 @@ Typical uses
 * screen a design space (mobilities, energy offsets, thickness) for maximum
   PCE or balanced OLED charge transport.
 
-All evaluations are independent, so they are distributed with
-``concurrent.futures.ProcessPoolExecutor`` when ``workers > 1``.
+All evaluations are independent, so they are distributed through
+:func:`orchid.parallel.parallel_map`: processes on one node
+(``workers > 1``) or MPI ranks across nodes (``mpiexec -n R``).
 """
 import itertools
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor
 
 
 def _eval(args):
@@ -24,7 +24,7 @@ def _eval(args):
         return np.inf
 
 
-def grid_search(objective, grid, workers=1, chunksize=8):
+def grid_search(objective, grid, workers=1, chunksize=8, backend="auto"):
     """Evaluate ``objective(params_dict)`` on the full Cartesian ``grid``.
 
     grid : dict name -> 1D array of candidate values.
@@ -34,11 +34,9 @@ def grid_search(objective, grid, workers=1, chunksize=8):
     names = list(grid)
     combos = list(itertools.product(*[np.asarray(grid[k]) for k in names]))
     pts = [dict(zip(names, c)) for c in combos]
-    if workers > 1:
-        with ProcessPoolExecutor(workers) as ex:
-            vals = list(ex.map(_eval, [(objective, p) for p in pts], chunksize=chunksize))
-    else:
-        vals = [_eval((objective, p)) for p in pts]
+    from .parallel import parallel_map
+    vals = parallel_map(_eval, [(objective, p) for p in pts], backend=backend,
+                        workers=workers, chunksize=chunksize)
     vals = np.array(vals)
     k = int(np.nanargmin(vals))
     dtype = [(n, float) for n in names] + [("objective", float)]

@@ -37,6 +37,7 @@
 \newcommand{\Gx}[1]{{\color{cX}#1}}
 \newcommand{\kT}{\Tk{k_BT}}
 \newcommand{\sh}{\hat{\En{\sigma}}}
+\newcommand{\rmbox}[4]{\fill[#3!25,draw=#3!70,rounded corners=2pt] (#1,-#2) rectangle ++(3.2,0.8); \node[anchor=west] at (#1+0.05,-#2+0.4) {#4};}
 \tikzset{box/.style={draw,rounded corners,align=center,font=\footnotesize,minimum width=27mm,minimum height=9mm,fill=#1!12,draw=#1!70}}
 
 \title{ORCHID}
@@ -44,7 +45,7 @@
 \small Multiscale charge \& exciton transport for OLEDs and organic solar cells}
 \author{Gokaran Shukla}
 \institute{KAUST, Thuwal, Saudi Arabia}
-\date{Technical presentation --- 13 November 2026 (v0.1.0)}
+\date{Technical presentation --- 13 November 2026 (v0.2.0)}
 
 \begin{document}
 \maketitle
@@ -92,8 +93,8 @@ PyPI name & \texttt{orchid-oe}\\
 CLI & \texttt{orchid}\\
 licence & MIT\\
 language & Python + Numba\\
-deps & numpy, scipy, numba\\
-tests & 22 (pytest, CI)\\
+deps & numpy, scipy, numba\\ extras & MPI, AMG, GPU\\
+tests & 36 (pytest, CI)\\
 \bottomrule
 \end{tabular}
 \end{columns}
@@ -449,6 +450,146 @@ Captures charge balance, emission-zone position, electrode quenching and annihil
 Use cases: GDM/EGDM parameters from $\Mu\mu(\Tk T,\Fd F)$ or temperature-dependent SCLC; $\Mu{\mu_p}$ and injection barrier from $J$--$V$; screening layer thickness, offsets and mobilities for maximum PCE or balanced OLED transport.
 \end{frame}
 
+
+% =====================================================================
+\section{v0.2: 3D device KMC \& electrostatics}
+
+\begin{frame}{What v0.2 adds}
+\small
+\begin{columns}[T]
+\column{0.5\textwidth}
+\begin{itemize}
+\item \texttt{device\_kmc}: \alert{full 3D device kinetic Monte Carlo} --- electrodes, injection/extraction, image charges, short- and long-range Coulomb, bipolar transport, exciton formation, multilayer OLED stacks
+\item \texttt{electrostatics}: Ewald sums, periodic lattice Green's function, image-charge series, sheet Green's function
+\item \texttt{transient}: implicit time-domain DD --- CELIV, TPV, TPC, arbitrary $\Fd V(t)$, $\GR G(t)$
+\end{itemize}
+\column{0.5\textwidth}
+\begin{itemize}
+\item \texttt{parallel}: hybrid \alert{MPI $\times$ processes $\times$ Numba threads}
+\item \texttt{gpu}: CUDA KMC kernel (one walker per thread), CuPy master-equation CG
+\item $\mathcal O(\log N_c)$ interacting KMC (Fenwick tree + incremental updates): up to $470\times$ faster
+\item AMG-preconditioned master equation, finite-size extrapolation
+\item \texttt{roadmap}: machine-readable plan, \texttt{orchid roadmap}
+\item code-to-code checks vs \alert{NIST Sesame} and \alert{tmm}
+\end{itemize}
+\end{columns}
+\end{frame}
+
+\begin{frame}{3D device KMC: model (\texttt{orchid.device\_kmc})}
+\small
+Lattice $L_x\times L_y\times L_z$, periodic in $x,y$; anode plane at $z=-\Gx a$, cathode at $z=L_z\Gx a$, separation $\Gx L=(L_z+1)\Gx a$. Multilayer: each plane has its own $\En{E_H},\En{E_L},\En{\sigma_h},\En{\sigma_e},\Rt{\nu_0}$.\\[1mm]
+Vacuum level (cathode Fermi level $=0$, anode $=-e\Fd V$):
+\[
+\En{U}(\Gx z)=(W_a-e\Fd V)+(W_c-W_a+e\Fd V)\,\Gx z/\Gx L
+\]
+Carrier energies (holes $q=+1$, electrons $q=-1$):
+\[
+\En{\varepsilon^{h}_i}=-(\En{E_{H,i}}+\En{U_i})+e\Fd{\phi_i}+\En{U_{im}}(z_i),\qquad
+\En{\varepsilon^{e}_i}=\En{E_{L,i}}+\En{U_i}-e\Fd{\phi_i}+\En{U_{im}}(z_i)
+\]
+Events (all Miller--Abrahams): hops; \alert{injection} from either electrode into sites within $r_{inj}$ ($\Delta\En E=\En{\varepsilon_j}-\mu_{el}$); \alert{extraction} ($\Delta\En E=\mu_{el}-\En{\varepsilon_i}$); \alert{exciton formation} when a carrier hops onto the opposite charge (recombination, $z$ recorded).\\[1mm]
+Ramo--Shockley current from every event: $\Js J=\dfrac{e}{\Gx L A\,t}\Op{\sum_{\rm events}}q\,\Delta z$ (low noise, includes injection and extraction).
+\end{frame}
+
+\begin{frame}{3D device KMC: electrostatics and algorithm}
+\small
+Potential per unit charge $\Fd{\phi_i}=\Fd{\phi^{\rm sheet}}(z_i)+\Fd{\phi^{\rm loc}_i}$:
+\[
+\Fd{\phi^{\rm sheet}}(z)=\Op{\sum_k}q_k\,\frac{e\,z_<(\Gx L-z_>)}{\varepsilon A\Gx L},\qquad
+\Fd{\phi^{\rm loc}_i}=\Op{\sum_{|r_{ik}|\le r_C}}q_k\Big[\frac{e}{4\pi\varepsilon r_{ik}}-\frac{e\,z_<(\Gx L-z_>)}{\varepsilon A\Gx L}\Big]
+\]
+Long range = 1D Poisson Green's function of charge sheets between grounded electrodes; short range = exact Coulomb minus its sheet part (converges to full Coulomb as $r_C$ grows). Image self energy:
+\[
+\En{U_{im}}(z)=\frac{e}{8\pi\varepsilon}\Op{\sum_{n}}\Big[\frac{1-\delta_{n0}}{2|n|\Gx L}-\frac{1}{|2(z-n\Gx L)|}\Big]\ \xrightarrow{z\ll L}\ -\frac{e}{16\pi\varepsilon z}
+\]
+\textbf{Algorithm}: Fenwick tree over carriers and injection sources; after each event only rates within $r_C+r_c$ of the touched sites are recomputed. Sheet potential updated \emph{exactly} in $\mathcal O(L_z)$; all rates refreshed every $N_{mf}$ events. Self-interaction is removed with the carrier's own sign.\\[1mm]
+\textbf{Checks}: detailed balance against an independent energy function (machine precision); zero bias gives $\Js J=0$ (within 0.1\,\%); electron/hole mirror symmetry.
+\end{frame}
+
+\begin{frame}{Ewald electrostatics (\texttt{orchid.electrostatics})}
+\small
+\[
+E=\frac{1}{4\pi\varepsilon}\Bigg[\frac12\Op{\sum_{i\neq j,\mathbf n}}q_iq_j\frac{\operatorname{erfc}(\alpha r_{ij,\mathbf n})}{r_{ij,\mathbf n}}
++\frac{2\pi}{V}\Op{\sum_{\mathbf k\neq0}}\frac{e^{-k^2/4\alpha^2}}{k^2}\Big|\Op{\sum_j}q_je^{i\mathbf k\cdot\mathbf r_j}\Big|^2-\frac{\alpha}{\sqrt\pi}\Op{\sum_i}q_i^2\Bigg]
+\]
+\begin{itemize}
+\item Real-space cutoff $r_c=L$ with $\alpha r_c=4.5$ (erfc $\sim10^{-10}$), reciprocal $|k_i|\le8$.
+\item \textbf{Validation}: rock-salt Madelung constant $1.747564595$ vs exact $1.747564594633$ --- error $6\times10^{-10}$.
+\item \texttt{ewald\_lattice\_green}: periodic Green's function on the KMC lattice (neutralising background, self term removed) $\Rightarrow$ lookup table for bulk KMC with full long-range Coulomb.
+\item Image series tested against the single-plane limit to $10^{-3}$.
+\end{itemize}
+\end{frame}
+
+% =====================================================================
+\section{v0.2: transient drift--diffusion}
+
+\begin{frame}{Time-domain drift--diffusion (\texttt{orchid.transient})}
+\small
+Backward Euler on the coupled system (same banded Newton solver):
+\[
+e\,\frac{\Dn{n^{k+1}}-\Dn{n^{k}}}{\Delta t}=\Op{\partial_x}\Js{J_n^{k+1}}-e(\GR R-\GR G)^{k+1},\qquad
+e\,\frac{\Dn{p^{k+1}}-\Dn{p^{k}}}{\Delta t}=-\Op{\partial_x}\Js{J_p^{k+1}}-e(\GR R-\GR G)^{k+1}
+\]
+Measured current includes displacement: $\Js{J_{tot}}=\Js{J_n}+\Js{J_p}+\varepsilon\,\Op{\partial_t}\Fd F$. Geometric time steps from ns to ms, with automatic sub-stepping on non-convergence.
+\begin{itemize}
+\item \textbf{CELIV} (Juška 2000): $\Fd V=-At$, $\ \Mu\mu=\dfrac{2d^2}{3At_{max}^2}$, Lorrmann correction $1/(1+0.36\Delta j/j_0)$; $t_{max}$ refined parabolically in $\ln t$.
+\item \textbf{TPV}: open circuit enforced at every step by a secant search on $\Fd V$ ($\Js J=0$); single-exponential fit gives $\tau_{\Delta n}$, compared with $1/(2\GR\gamma\Dn n)$.
+\item \textbf{TPC}, arbitrary $\Fd V(t)$, $\GR G(t)$ protocols; long-time limit reproduces the steady state to $10^{-3}$ (test).
+\end{itemize}
+\end{frame}
+
+% =====================================================================
+\section{v0.2: massive parallelism}
+
+\begin{frame}{Hybrid parallel architecture (\texttt{orchid.parallel}, \texttt{orchid.gpu})}
+\footnotesize
+\begin{tabular}{@{}llll@{}}
+\toprule
+level & mechanism & scales to & used by\\
+\midrule
+GPU & CUDA kernel, 1 walker/thread & $10^5$--$10^6$ walkers & bulk KMC, TOF\\
+GPU & CuPy sparse CG & $10^7$ sites & master equation\\
+threads & Numba \texttt{prange} (no GIL) & all cores of a node & KMC, exciton KMC\\
+processes & \texttt{ProcessPoolExecutor} & 1 node & \texttt{parallel\_map}, search\\
+MPI & mpi4py block-cyclic task farm & $10^3$+ ranks & ensembles, sweeps, $J$--$V$, grids\\
+\bottomrule
+\end{tabular}
+\\[3mm]
+\begin{itemize}
+\item One call for every level: \texttt{parallel\_map(f, tasks, backend="auto")} --- MPI under \texttt{mpiexec}, otherwise processes or serial; results come back ordered on every rank.
+\item Disorder ensembles, $(\Tk T,\Fd F,\Dn p)$ sweeps, device $J$--$V$ sets and exhaustive-search grids are \alert{embarrassingly parallel} $\Rightarrow$ near-ideal weak scaling.
+\item Cluster launch: \texttt{export NUMBA\_NUM\_THREADS=t; mpiexec -n R python study.py}.
+\item GPU kernel tested on CPU through Numba's CUDA simulator (CI-friendly).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{$\mathcal O(\log N)$ interacting KMC}
+\small
+\begin{columns}[T]
+\column{0.5\textwidth}
+\textbf{Dense reference}: recompute $N_cM$ rates per event $\Rightarrow\mathcal O(N_c)$.\\[2mm]
+\textbf{ORCHID fast engine}:
+\begin{enumerate}
+\item per-carrier rate rows $\Rt{\Gamma_c}$ stored in a \alert{Fenwick tree} $\Rightarrow$ selection and update in $\mathcal O(\log N_c)$
+\item site$\to$carrier map: after a hop only carriers within $r_c$ (exclusion) or $r_C+r_c$ (Coulomb) of the two touched sites are refreshed
+\item periodic tree rebuild removes floating-point drift
+\end{enumerate}
+\column{0.47\textwidth}
+\textbf{Verified}: identical mobilities to the dense engine (statistical test).\\[2mm]
+\textbf{Measured} ($40^3$ sites):\\[1mm]
+\begin{tabular}{rrr}
+\toprule
+$N_c$ & fast (ev/s) & dense (ev/s)\\
+\midrule
+12 & $1.3\times10^6$ & $3.9\times10^5$\\
+320 & $1.1\times10^6$ & $1.5\times10^4$\\
+3200 & $5.1\times10^5$ & $1.1\times10^3$\\
+\bottomrule
+\end{tabular}\\[1mm]
+$\Rightarrow$ $470\times$ at 3200 carriers; the same machinery drives the 3D device KMC.
+\end{columns}
+\end{frame}
+
 % =====================================================================
 \section{Validation against published results}
 
@@ -470,6 +611,11 @@ V9 & inverse problems & synthetic ground truth & $\En\sigma$, $\Mu{\mu_\infty}$,
 V10 & TOF transients & dispersive transport (Scher--Montroll) & plateau tilts, tail broadens with $\sh$\\
 V11 & Marcus vs MA & inverted region, detailed balance & $7\times10^{-15}$\\
 V12 & OLED / OPV & device physics trends & roll-off, emission zone, PCE\\
+V13 & 3D device KMC & 1D DD (van der Holst 2009) & $\le1.6\times$ up to 2\,V; $J(0)=0$\\
+V14 & Madelung, images & exact constants / limits & $6\times10^{-10}$; $10^{-3}$\\
+V15 & DD and optics & \alert{NIST Sesame}, \alert{tmm} codes & $\Delta J/J_{sc}\le3\times10^{-6}$; $10^{-15}$\\
+V16 & parallel efficiency & ideal scaling & 2.0$\times$ on 2 cores (all levels)\\
+V17 & CELIV, TPV & Juška 2000; $1/(2\gamma n)$ & $\to$1.05; 1.14 (300\,nm)\\
 \bottomrule
 \end{tabular}
 \end{frame}
@@ -596,6 +742,37 @@ Left: triplet--triplet annihilation ($k_{TT}=10^{-18}$, $10^{-17}$\,m$^3$/s) dri
 Right: the recombination zone sits about 15\,nm from the cathode (slow electrons) and barely moves with bias.
 \end{frame}
 
+
+\begin{frame}{V13 --- 3D device KMC vs 1D drift--diffusion; 3-layer OLED}
+\centering
+\includegraphics[width=0.8\linewidth]{v13_device_kmc.pdf}\\
+\footnotesize
+Left: hole-only diode, $\sh=3$, $50$\,nm, $30\times30\times30$ sites, 2 disorder samples. Mean-field and full Coulomb agree, so short-range correlations matter little here. Against the 1D EGDM\,+\,$\Mu{g_3}$ drift--diffusion: $1.2\times$ at 1.5\,V and $1.5\times$ at 2\,V. The gap rises to $4.9\times$ at 6\,V, where $e\Fd F\Gx a/\En\sigma>2$ lies outside the EGDM fit range, and 3D current filamentation (van der Holst \emph{et al.} 2009) raises the 3D current.
+Right: HTL/EML/ETL OLED (bipolar, full Coulomb, images). Recombination is pinned at both EML interfaces, the cathode-side peak grows with bias, and $\gamma_b\approx1$ (blocking layers).
+\end{frame}
+
+\begin{frame}{V15 --- code-to-code: NIST Sesame and tmm}
+\centering
+\includegraphics[width=0.8\linewidth]{v15_published_software.pdf}\\
+\footnotesize
+Left: \textbf{NIST Sesame} (independent finite-difference DD; github.com/usnistgov/sesame) on identical devices, run in a separate sandboxed process (\texttt{\_sesame\_runner.py}). Dark: max relative deviation $9\times10^{-8}$. Illuminated: $\max|\Delta J|/J_{sc}=3\times10^{-6}$, $\Delta V_{oc}=4$\,nV, $\Delta$FF\,$<2\times10^{-8}$, including unbalanced mobilities and 0.3\,eV Schottky barriers.
+Right: \textbf{tmm} (Byrnes, arXiv:1603.02720). $R$ agrees to $9\times10^{-16}$, the local absorption profile to $2\times10^{-15}$, and per-layer absorptance to $3\times10^{-5}$ (quadrature).
+\end{frame}
+
+\begin{frame}{V16 --- parallel performance}
+\centering
+\includegraphics[width=0.8\linewidth]{v16_parallel.pdf}\\
+\footnotesize
+Left: every CPU level reaches the ideal $2\times$ on the 2-core test node --- Numba threads ($1.9\to3.8\times10^7$ hops/s), process pool and MPI (8 master-equation solves on $36^3$ sites). MPI and process results are \alert{bit-identical} to serial. Right: interacting-KMC throughput --- the Fenwick engine stays near $10^6$ events/s while the dense engine falls as $1/N_c$. Larger node counts and GPUs were not available in this environment; the task farm has no communication except the final gather.
+\end{frame}
+
+\begin{frame}{V17 --- transient experiments}
+\centering
+\includegraphics[width=0.95\linewidth]{v17_transient.pdf}\\
+\footnotesize
+(a) Photo-CELIV transients. (b) Juška mobility over input mobility tends to 1 as $qV(t_{max})/\kT$ grows: 1.36 at 8.5 and 1.05 at 310. Diffusion biases CELIV at low ramp rates, a point often overlooked in practice. (c) TPV: at 300\,nm and $\GR G=10^{28}$ an initial-decay fit gives $1.14\times$ the bulk Langevin value $1/(2\GR\gamma\Dn n)$, though the decay is not single-exponential. A 100\,nm device at 1 sun gives $3.8\times$: electrode/contact charge dominates (cf.\ Kiermasch \emph{et al.}, EES 2018).
+\end{frame}
+
 % =====================================================================
 \section{Software engineering}
 
@@ -604,25 +781,27 @@ Right: the recombination zone sits about 15\,nm from the cathode (slow electrons
 \column{0.45\textwidth}\scriptsize
 \begin{verbatim}
 orchid/
-  orchid/   rates.py  lattice.py
-            kmc.py    master_equation.py
-            models.py drift_diffusion.py
-            exciton.py optics.py
-            devices.py search.py cli.py
-  tests/test_orchid.py      (22 tests)
-  validation/bench_*.py     (V1-V12)
+  orchid/  rates  lattice  kmc  _fenwick
+           master_equation  models
+           drift_diffusion  transient
+           device_kmc  electrostatics
+           exciton  optics  devices
+           search  parallel  gpu
+           roadmap  cli
+  tests/test_orchid.py        (36 tests)
+  validation/bench_*.py       (V1-V17)
+  validation/_sesame_runner.py
   validation/figures, results/*.json
-  examples/01-04_*.py
-  docs/slides/orchid_slides.tex
+  examples/  docs/slides/
+  ROADMAP.md  README.md  LICENSE
   .github/workflows/tests.yml
-  pyproject.toml README.md LICENSE
 \end{verbatim}
 \column{0.52\textwidth}\small
 \begin{itemize}
-\item Tests: detailed balance, inverted region, lattice topology, disorder statistics, ME$\leftrightarrow$KMC, ME nonlinear$\leftrightarrow$linear, Einstein limit, Gaussian statistics, Bernoulli, Koster $V_{oc}$, current continuity, MG limit, Braun limits, TMM, excitons, search.
-\item CI on Python 3.10--3.12 (GitHub Actions).
-\item Numba optional at import (pure-Python fallback).
-\item Every benchmark writes figures and machine-readable JSON (reproducible).
+\item 36 tests: physics limits, solver cross-checks, detailed balance, device-KMC equilibrium and symmetry, CELIV, transient $\to$ steady state, Fenwick tree, parallel backends, CUDA simulator, roadmap integrity.
+\item CI on Python 3.10--3.12.
+\item Optional extras: \texttt{[mpi]}, \texttt{[amg]}, \texttt{[gpu]}, \texttt{[validate]}, \texttt{[all]}.
+\item Every benchmark writes figures and JSON; external codes run in isolated subprocesses.
 \end{itemize}
 \end{columns}
 \end{frame}
@@ -630,66 +809,69 @@ orchid/
 \begin{frame}[fragile]{Usage}
 \scriptsize
 \begin{verbatim}
-from orchid.lattice import Lattice
-from orchid.master_equation import me_linear_response
-from orchid.drift_diffusion import Device
-from orchid.devices import simulate_opv
-from orchid.optics import lorentz_nk
+from orchid.device_kmc import DeviceKMC, Layer
+from orchid.parallel import parallel_map
 
-lat = Lattice(40, a=1.6e-9, seed=1).set_disorder(0.1, model="dipolar")
-mu, info = me_linear_response(lat, T=300, n_frac=1e-3, alpha=10.0)
+stack = [Layer(10, HOMO=-5.2, LUMO=-2.0, name="HTL"),
+         Layer(10, HOMO=-5.4, LUMO=-2.7, name="EML"),
+         Layer(10, HOMO=-6.0, LUMO=-2.8, name="ETL")]
 
-dev = Device(L=100e-9, Eg=1.2, mu_n=1e-8, mu_p=1e-8, langevin_prefactor=0.1,
-             braun=dict(a_ct=1.5e-9, kf=1e6))
-stack = [("ITO", 1.9+0.01j, 120e-9), ("PEDOT", 1.5+0.02j, 40e-9),
-         ("blend", lorentz_nk, 100e-9), ("Al", 0.96+6.69j, 100e-9)]
-res = simulate_opv(dev, V=np.linspace(-0.4, 0.95, 28), layers=stack, active_index=2)
+def point(V):
+    dev = DeviceKMC(stack, Lx=40, Ly=40, W_anode=5.1, W_cathode=2.9, coulomb="full")
+    return dev.run(V, n_eq=5e5, n_meas=2e6)
+
+jv = parallel_map(point, [3, 4, 5, 6, 7])          # MPI ranks under mpiexec
+
+from orchid.transient import celiv
+res = celiv(device, A=1e7, t_end=5e-6, G_pulse=1e30, t_pulse=1e-10)
 \end{verbatim}
 \small Command line:
 \scriptsize
 \begin{verbatim}
-orchid mobility --method kmc --sigma 0.1 --T 250 --density 1e-2 --coulomb
-orchid jv --Eg 1.2 --G 1e27 --Vmin -0.3 --Vmax 0.9
-orchid egdm --T 300 --p 1e23 --F 1e7
+orchid roadmap                 # done / planned items
+orchid parallel                # MPI ranks, threads, GPU
+mpiexec -n 64 python study.py  # any parallel_map spreads across 64 ranks
 \end{verbatim}
 \end{frame}
 
-\section{Limitations, roadmap and next steps}
+\section{Roadmap}
 
-\begin{frame}{Honest limitations of v0.1}
+\begin{frame}{Roadmap in the code: \texttt{orchid/roadmap.py} + \texttt{ROADMAP.md}}
+\centering
+\begin{tikzpicture}[x=1cm,y=0.5cm,font=\scriptsize]
+\foreach \v/\x/\lab in {0/0/v0.1,1/3.5/v0.2,2/7/v0.3,3/10.5/v0.4}{\node[font=\small\bfseries] at (\x+1.6,1) {\lab};}
+\rmbox{0}{0}{cW}{R01 rates}\rmbox{0}{1}{cE}{R02 disorder}\rmbox{0}{2}{cMu}{R03 bulk KMC}\rmbox{0}{3}{cMu}{R04 master eq.}
+\rmbox{0}{4}{cF}{R05 1D DD}\rmbox{0}{5}{cG}{R06 optics}\rmbox{0}{6}{cG}{R07 excitons}\rmbox{0}{7}{cOp}{R08 search}
+\rmbox{3.5}{0}{cJ}{R09 MPI/threads}\rmbox{3.5}{1}{cJ}{R10 GPU kernels}\rmbox{3.5}{2}{cMu}{R11 $\log N$ KMC}\rmbox{3.5}{3}{cF}{R12 Ewald/images}
+\rmbox{3.5}{4}{cMu}{R13 3D device KMC}\rmbox{3.5}{5}{cF}{R14 transient DD}\rmbox{3.5}{6}{cMu}{R15 AMG, size extrap.}
+\rmbox{7}{0}{gray}{R16 excitons in dev.\ KMC}\rmbox{7}{1}{gray}{R17 multilayer DD}\rmbox{7}{2}{gray}{R18 impedance/IMPS}
+\rmbox{7}{3}{gray}{R19 2D/3D DD, OFET}\rmbox{7}{4}{gray}{R20 dipole outcoupling}
+\rmbox{10.5}{0}{gray}{R21 MD+DFT inputs}\rmbox{10.5}{1}{gray}{R22 ML surrogates}\rmbox{10.5}{2}{gray}{R23 GPU device KMC}
+\node[anchor=west,font=\small] at (0,-8.6) {coloured: done (15/23, with validation)\quad grey: planned};
+\end{tikzpicture}
+\end{frame}
+
+\begin{frame}{Honest limitations of v0.2}
 \small
 \begin{itemize}
-\item \textbf{Finite-size effects} at $\sh\gtrsim4$ (V1/V2). Planned: automatic size extrapolation and larger sparse solves (AMG preconditioner).
-\item \textbf{Device level is 1D} drift--diffusion; no 3D device KMC with explicit injection, image charges and multilayer morphology yet.
-\item Coulomb in KMC uses a real-space cutoff (no Ewald sum); ME is mean field (no correlations), though V2 shows they are small here.
-\item MLJ in the low-temperature form; no Gaussian-DOS (Paasch--Scheinert) contact statistics in DD; Boltzmann contacts only.
-\item Optics: coherent layers only, placeholder solar spectrum, no dipole-emission microcavity model for OLED outcoupling.
-\item No transient DD (TPC/TPV, impedance), no OFET 2D geometry, no ab initio morphology / transfer-integral pipeline yet.
+\item \textbf{Scaling demonstrated only on 2 cores.} The task farm has no inter-task communication, so near-ideal weak scaling is expected, but it has not been measured on a cluster. The GPU path is verified in the CUDA simulator, not on hardware.
+\item \textbf{Device KMC}: excitons recombine instantly on formation (no exciton diffusion, TTA or TPQ yet, R16). The long-range Coulomb part is mean field, refreshed every $N_{mf}$ events. Single-site exclusion for both species.
+\item The 3D KMC exceeds 1D EGDM drift--diffusion at high field. This is physics (filaments, EGDM validity range), but the size dependence still has to be quantified.
+\item 1D DD only for multilayers in continuum; Boltzmann contact statistics.
+\item Finite-size effects in bulk ME/KMC at $\sh\ge4$ (V1/V2) --- now quantifiable with \texttt{finite\_size\_extrapolation}.
+\item Not yet compared against commercial device-KMC tools (e.g.\ \textsc{Bumblebee}), which are not publicly available.
 \end{itemize}
-These are explicit targets, not hidden assumptions.
 \end{frame}
 
-\begin{frame}{Roadmap toward a complete reference platform}
+\begin{frame}{Publishing to GitHub}
 \small
 \begin{enumerate}
-\item 3D device KMC (injection, extraction, exciton formation, TTA/TPQ, multilayer OLED stacks)
-\item Ewald / image-charge Coulomb; correlated disorder from real dipole fields; ECDM parametrisation
-\item Transient \& small-signal DD (TPC, TPV, CELIV, impedance spectroscopy); 2D DD for OFETs and bulk heterojunction morphologies
-\item Dipole-emitter optics (Chance--Prock--Silbey) for OLED outcoupling; ASTM G173 spectrum and $n,k$ database
-\item Morphology input (MD snapshots) + DFT transfer integrals / site energies (VOTCA-like) $\to$ parameter-free mobilities
-\item ML surrogates of $\Mu\mu(\Tk T,\Dn p,\Fd F)$ trained on ORCHID ME/KMC data; Bayesian inversion on top of exhaustive grids
-\item GPU kernels (CuPy) for KMC and ME
-\end{enumerate}
-\end{frame}
-
-\begin{frame}{Tomorrow: publishing to GitHub}
-\small
-\begin{enumerate}
-\item Repository prepared locally with one initial commit on \texttt{main}.
-\item Create an empty repo \texttt{Gokaran-Shukla/orchid} (public, no README).
+\item Repository is committed locally on \texttt{main} (v0.1.0 + v0.2.0 commits).
+\item Create empty repo \texttt{Gokaran-Shukla/orchid} (public, no README).
 \item \texttt{git remote add origin git@github.com:Gokaran-Shukla/orchid.git}
-\item \texttt{git push -u origin main} $\Rightarrow$ CI runs the 22 tests automatically.
-\item Add topics (organic-electronics, oled, kinetic-monte-carlo, drift-diffusion), a release tag \texttt{v0.1.0}, Zenodo DOI for citation.
+\item \texttt{git push -u origin main} $\Rightarrow$ CI runs the 36 tests.
+\item Tag \texttt{v0.2.0}; add topics (organic-electronics, oled, kinetic-monte-carlo, drift-diffusion, mpi, gpu); Zenodo DOI.
+\item Optional: run \texttt{validation/bench\_*.py} on KAUST Shaheen with \texttt{mpiexec} to record real multi-node scaling for the paper.
 \end{enumerate}
 \end{frame}
 
@@ -716,6 +898,14 @@ These are explicit targets, not hidden assumptions.
 \item Identifying pitfalls when using the Miller--Abrahams rate in KMC, J.\ Mater.\ Chem.\ C 13, 14962 (2025).
 \item H.\ Scher, E.\ W.\ Montroll, Phys.\ Rev.\ B 12, 2455 (1975) --- dispersive transport.
 \item I.\ I.\ Fishchuk \emph{et al.}, Phys.\ Rev.\ B 67, 224303 (2003) --- polaron + disorder.
+\item J.\ J.\ M.\ van der Holst \emph{et al.}, Phys.\ Rev.\ B 79, 085203 (2009); 83, 085206 (2011) --- 3D modelling of organic diodes.
+\item M.\ Mesta \emph{et al.}, Nat.\ Mater.\ 12, 652 (2013) --- molecular-scale OLED simulation.
+\item G.\ Juška \emph{et al.}, Phys.\ Rev.\ Lett.\ 84, 4946 (2000); A.\ J.\ Lorrmann \emph{et al.}, J.\ Appl.\ Phys.\ 108, 113705 (2010) --- CELIV.
+\item C.\ G.\ Shuttle \emph{et al.}, Appl.\ Phys.\ Lett.\ 92, 093311 (2008); D.\ Kiermasch \emph{et al.}, Energy Environ.\ Sci.\ 11, 629 (2018) --- TPV.
+\item P.\ P.\ Ewald, Ann.\ Phys.\ 369, 253 (1921) --- lattice sums.
+\item NIST Sesame: B.\ Gaudreau \emph{et al.}, J.\ Appl.\ Phys.\ (2019); github.com/usnistgov/sesame.
+\item S.\ J.\ Byrnes, arXiv:1603.02720 --- \texttt{tmm} package.
+\item P.\ M.\ Fenwick, Softw.\ Pract.\ Exper.\ 24, 327 (1994) --- binary indexed trees.
 \end{itemize}
 \end{frame}
 

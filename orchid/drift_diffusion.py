@@ -170,7 +170,8 @@ class Device:
             Cn, Cp, Nt = s["Cn"], s["Cp"], s["Nt"]
             R = R + Cn * Cp * Nt * (n * p - d.ni2) / (Cn * (n + n1) + Cp * (p + p1))
             ft = (Cn * n + Cp * p1) / (Cn * (n + n1) + Cp * (p + p1))
-            rho_t = -q * Nt * ft if s.get("acceptor", True) else q * Nt * (1 - ft)
+            if s.get("charged", True):
+                rho_t = -q * Nt * ft if s.get("acceptor", True) else q * Nt * (1 - ft)
         return R, G, rho_t
 
     def residual(self, z, V):
@@ -192,8 +193,15 @@ class Device:
         mid = slice(1, -1)
         # continuity rows scaled by the local density (relative residual,
         # same root, much better conditioned for densities spanning decades)
-        r_n = ((Jn[1:] - Jn[:-1]) / dV - q * (R[mid] - G[mid])) / (q * (n[mid] + 1.0)) * 1e-6
-        r_p = ((Jp[1:] - Jp[:-1]) / dV + q * (R[mid] - G[mid])) / (q * (p[mid] + 1.0)) * 1e-6
+        dn_t = 0.0
+        dp_t = 0.0
+        ts = getattr(d, "_tstate", None)
+        if ts is not None:                    # implicit Euler time derivative
+            n_old, p_old, dt = ts
+            dn_t = (n[mid] - n_old[mid]) / dt
+            dp_t = (p[mid] - p_old[mid]) / dt
+        r_n = ((Jn[1:] - Jn[:-1]) / dV - q * (R[mid] - G[mid]) - q * dn_t) / (q * (n[mid] + 1.0)) * 1e-6
+        r_p = ((Jp[1:] - Jp[:-1]) / dV + q * (R[mid] - G[mid]) + q * dp_t) / (q * (p[mid] + 1.0)) * 1e-6
         return np.stack([r_psi, r_n, r_p], 1).ravel()
 
     # ---------------------------------------------------------------- Newton

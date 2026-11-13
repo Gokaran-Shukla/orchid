@@ -20,13 +20,20 @@ analytical limit or a published result (see `validation/`).
 | `optics` | coherent transfer matrix (Pettersson 1999), generation profile, escape-cone outcoupling | 2×2 matrices |
 | `exciton` | Förster/Dexter exciton KMC; continuum emission zone with S–S and S–P annihilation | KMC + Newton |
 | `devices` | OLED EQE = γ_b·η_S/T·q_eff·η_out with roll-off; OPV J–V, Jsc, Voc, FF, PCE | workflow |
-| `search` | exhaustive grid, zooming grid, Latin hypercube, log-RMSE | process-parallel |
+| `search` | exhaustive grid, zooming grid, Latin hypercube, log-RMSE | MPI / process parallel |
+| `device_kmc` | **full 3D device KMC**: electrodes, injection/extraction, image charges, short- + long-range Coulomb, bipolar transport, exciton formation, multilayer OLED stacks | Fenwick tree, incremental updates, Ramo current |
+| `electrostatics` | Ewald sums, periodic lattice Green's function, image-charge series, sheet Green's function | Ewald |
+| `transient` | time-domain DD: CELIV, TPV, TPC, arbitrary V(t), G(t), displacement current | implicit Euler + banded Newton |
+| `parallel` | hybrid MPI × processes × Numba threads; `parallel_map`, `ensemble` | mpi4py task farm |
+| `gpu` | CUDA KMC kernel (one walker per thread), CuPy master-equation CG | Numba CUDA, CuPy |
+| `roadmap` | machine-readable roadmap (`orchid roadmap`), see ROADMAP.md | — |
 
 ## Install
 
 ```bash
-pip install -e ".[dev]"     # numpy, scipy, numba (+ pytest, matplotlib)
-pytest -q                   # 22 tests, about 10 s
+pip install -e ".[dev]"     # numpy, scipy, numba (+ pytest, matplotlib, pyamg, tmm)
+pip install -e ".[mpi,gpu]" # optional: mpi4py, cupy
+pytest -q                   # 36 tests, about 4 min
 ```
 
 ## Quick start
@@ -65,6 +72,19 @@ More in `examples/` (ME vs KMC, solar cell with optics, OLED roll-off, GDM fit).
 | V8 | optics | Airy formula, energy conservation | 3e-16 / 7e-6 |
 | V9 | inverse problems | known synthetic truth | GDM σ, μ∞, Σ within 1 %; DD barrier and mobility recovered |
 | V10–V12 | TOF, Marcus vs MA, OLED / OPV demos | qualitative literature trends | — |
+| V13 | 3D device KMC | 1D EGDM DD (van der Holst 2009); zero-bias equilibrium | ≤ 1.6× up to 2 V; J(0)=0; e/h mirror symmetry |
+| V14 | Ewald / images | NaCl Madelung constant; single-plane image limit | 6e-10; 1e-3 |
+| V15 | **code-to-code** | **NIST Sesame** (DD) and **tmm** (optics) | ΔJ/Jsc ≤ 3e-6, ΔVoc 4 nV; 1e-15 |
+| V16 | parallel efficiency | ideal | 2.0× on 2 cores for threads, processes and MPI; MPI bit-identical |
+| V17 | CELIV, TPV | Juška 2000; 1/(2γn) | μ_CELIV/μ → 1.05; 1.14× (300 nm) |
+
+## Parallel runs
+
+```bash
+export NUMBA_NUM_THREADS=8
+mpiexec -n 64 python my_study.py     # every parallel_map(...) call spreads over 64 ranks
+orchid parallel                      # show ranks, threads, GPU
+```
 
 ## Units
 
