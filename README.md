@@ -26,14 +26,23 @@ analytical limit or a published result (see `validation/`).
 | `transient` | time-domain DD: CELIV, TPV, TPC, arbitrary V(t), G(t), displacement current | implicit Euler + banded Newton |
 | `parallel` | hybrid MPI × processes × Numba threads; `parallel_map`, `ensemble` | mpi4py task farm |
 | `gpu` | CUDA KMC kernel (one walker per thread), CuPy master-equation CG | Numba CUDA, CuPy |
-| `roadmap` | machine-readable roadmap (`orchid roadmap`), see ROADMAP.md | — |
+| `exciton_device` | exciton KMC coupled to device KMC: Förster hopping, TTA, TPQ, metal quenching → EQE roll-off | Fenwick KMC |
+| `drift_diffusion.MultilayerDevice` | heterostructures (band offsets, per-layer materials), Gaussian-DOS contacts | coupled Newton |
+| `smallsignal` | impedance / admittance, IMPS, IMVS | linearised frequency domain |
+| `dd2d` | 2D drift-diffusion: OFETs, bulk-heterojunction morphologies | sparse Newton, 15-colour Jacobian |
+| `optics.dipole_emission` | dipole emitters in multilayers: Purcell factor, air/substrate/waveguide/SPP modes | plane-wave expansion (CPS) |
+| `materials` | refractiveindex.info n,k data (Al, Ag, Au, ITO, PEDOT:PSS, P3HT:PCBM, SiO2, BK7), ASTM G173 | — |
+| `morphology` | amorphous packings, DIPRO transfer integrals (PySCF), dipolar site energies, hopping graphs | VOTCA-style |
+| `ml` | Gaussian-process surrogates, exhaustive-grid Bayesian inversion | NumPy |
+| `sublattice_kmc` | parallel-in-space interacting KMC (Shim–Amar), CPU threads and CUDA | synchronous sublattice |
+| `roadmap` | machine-readable roadmap (`orchid roadmap`), see ROADMAP.md: **23/23 done** | — |
 
 ## Install
 
 ```bash
 pip install -e ".[dev]"     # numpy, scipy, numba (+ pytest, matplotlib, pyamg, tmm)
-pip install -e ".[mpi,gpu]" # optional: mpi4py, cupy
-pytest -q                   # 36 tests, about 4 min
+pip install -e ".[mpi,gpu,qc]" # optional: mpi4py, cupy, pyscf
+pytest -q                   # 49 tests, about 3 min
 ```
 
 ## Quick start

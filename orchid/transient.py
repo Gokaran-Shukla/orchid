@@ -24,7 +24,7 @@ from .constants import q
 
 def _state(dev, z, V):
     psi, u, v = dev.unpack(z, V)
-    return psi, dev.Nc * np.exp(u), dev.Nv * np.exp(v)
+    return psi, dev.Nc_x * np.exp(u), dev.Nv_x * np.exp(v)
 
 
 def _total_current(dev, z, V, psi_old, dt):
@@ -34,7 +34,7 @@ def _total_current(dev, z, V, psi_old, dt):
     if psi_old is None:
         return np.median(Jc), Jc
     F_old = -(psi_old[1:] - psi_old[:-1]) / dev.h
-    Jd = dev.eps * (F - F_old) / dt
+    Jd = dev.eps_e * (F - F_old) / dt
     Jt = Jc + Jd
     return np.median(Jt), Jt
 
@@ -86,7 +86,7 @@ def step_response(dev, tgrid, Vfun, Gfun=None, z0=None, V0=None, maxit=60):
 
 def _z_from_profile(dev, prof):
     psi, n, p = prof["psi"], prof["n"], prof["p"]
-    return np.stack([psi[1:-1], np.log(n[1:-1] / dev.Nc), np.log(p[1:-1] / dev.Nv)], 1).ravel()
+    return np.stack([psi[1:-1], np.log(n[1:-1] / dev.Nc_x[1:-1]), np.log(p[1:-1] / dev.Nv_x[1:-1])], 1).ravel()
 
 
 def celiv(dev, A, t_end, n_t=200, V_offset=0.0, G_pulse=0.0, t_pulse=0.0,

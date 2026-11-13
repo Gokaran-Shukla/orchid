@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orchid-oe"
-version = "0.2.0"
+version = "0.3.0"
 description = "ORCHID: multiscale charge & exciton transport simulator for organic semiconductors, OLEDs and organic solar cells (KMC, master equation, EGDM, drift-diffusion, transfer-matrix optics)"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "Gokaran Shukla", email = "gokaran.shukla@kaust.edu.sa"}]
 requires-python = ">=3.9"
-dependencies = ["numpy>=1.22", "scipy>=1.9", "numba>=0.57"]
+dependencies = ["numpy>=1.22", "scipy>=1.9", "numba>=0.57", "pyyaml>=5"]
 keywords = ["organic semiconductors", "OLED", "organic photovoltaics", "kinetic Monte Carlo",
             "master equation", "Gaussian disorder model", "drift-diffusion", "hopping transport"]
 classifiers = ["Programming Language :: Python :: 3", "License :: OSI Approved :: MIT License",
@@ -22,8 +22,9 @@ mpi = ["mpi4py>=3.1"]
 amg = ["pyamg>=5"]
 gpu = ["cupy-cuda12x>=13"]
 validate = ["matplotlib>=3.5", "tmm>=0.2"]
-all = ["matplotlib>=3.5", "mpi4py>=3.1", "pyamg>=5", "tmm>=0.2"]
-dev = ["pytest>=7", "matplotlib>=3.5", "pyamg>=5", "tmm>=0.2"]
+qc = ["pyscf>=2.3"]
+all = ["matplotlib>=3.5", "mpi4py>=3.1", "pyamg>=5", "tmm>=0.2", "pyscf>=2.3"]
+dev = ["pytest>=7", "matplotlib>=3.5", "pyamg>=5", "tmm>=0.2", "pyscf>=2.3"]
 
 [project.scripts]
 orchid = "orchid.cli:main"
@@ -33,6 +34,9 @@ Homepage = "https://github.com/Gokaran-Shukla/orchid"
 
 [tool.setuptools.packages.find]
 include = ["orchid*"]
+
+[tool.setuptools.package-data]
+orchid = ["data/*.csv", "data/nk/*.yml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

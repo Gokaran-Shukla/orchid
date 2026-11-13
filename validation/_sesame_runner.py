@@ -23,16 +23,41 @@ logging.disable(logging.CRITICAL)
 cases = json.load(open(sys.argv[2]))
 results = {}
 for name, c in cases.items():
-    L = c["L_m"] * 100.0                                    # cm
-    s = np.linspace(0, 1, c["N"])
-    x = L * 0.5 * (1 + np.tanh(c["beta"] * (2 * s - 1)) / np.tanh(c["beta"]))
-    sysm = sesame.Builder(x, input_length="cm", T=c["T"])
-    tau = c["tau"]
-    sysm.add_material(dict(Nc=c["Nc_m3"] * 1e-6, Nv=c["Nv_m3"] * 1e-6, Eg=c["Eg"],
-                           affinity=c["chi"], epsilon=c["eps_r"], mu_e=c["mu_n_m2"] * 1e4,
-                           mu_h=c["mu_p_m2"] * 1e4, tau_e=tau, tau_h=tau, Et=0.0, B=0.0))
-    wf_anode = c["chi"] + c["Eg"] - c["phi_a"]
-    wf_cathode = c["chi"] + c["phi_c"]
+    if "layers" in c:                     # heterostructure: explicit grid
+        x_m = np.asarray(c["x_m"])
+        L = x_m[-1] * 100.0
+        xs = L - x_m[::-1] * 100.0          # mirrored (cathode on the left)
+        sysm = sesame.Builder(xs, input_length="cm", T=c["T"])
+        bounds = np.cumsum([l["d"] for l in c["layers"]]) * 100.0
+        for k, l in enumerate(c["layers"]):
+            lo = 0.0 if k == 0 else bounds[k - 1]
+            hi = bounds[k]
+            # ORCHID assigns an interface node to the left (anode-side) layer
+            tol = 1e-9 * L
+            lo_eff = lo - tol if k == 0 else lo + tol
+
+            def make_loc(lo_eff, hi, L, tol):
+                def loc(xx):
+                    X = L - xx
+                    return (X > lo_eff) & (X <= hi + tol)
+                return loc
+            loc = make_loc(lo_eff, hi, L, tol)
+            sysm.add_material(dict(Nc=l["Nc"] * 1e-6, Nv=l["Nv"] * 1e-6, Eg=l["Eg"],
+                                   affinity=l["chi"], epsilon=l["eps_r"], mu_e=l["mu_n"] * 1e4,
+                                   mu_h=l["mu_p"] * 1e4, tau_e=c["tau"], tau_h=c["tau"],
+                                   Et=0.0, B=0.0), loc)
+        wf_anode, wf_cathode = c["W_anode"], c["W_cathode"]
+    else:
+        L = c["L_m"] * 100.0                                    # cm
+        s = np.linspace(0, 1, c["N"])
+        x = L * 0.5 * (1 + np.tanh(c["beta"] * (2 * s - 1)) / np.tanh(c["beta"]))
+        sysm = sesame.Builder(x, input_length="cm", T=c["T"])
+        tau = c["tau"]
+        sysm.add_material(dict(Nc=c["Nc_m3"] * 1e-6, Nv=c["Nv_m3"] * 1e-6, Eg=c["Eg"],
+                               affinity=c["chi"], epsilon=c["eps_r"], mu_e=c["mu_n_m2"] * 1e4,
+                               mu_h=c["mu_p_m2"] * 1e4, tau_e=tau, tau_h=tau, Et=0.0, B=0.0))
+        wf_anode = c["chi"] + c["Eg"] - c["phi_a"]
+        wf_cathode = c["chi"] + c["phi_c"]
     # empirically verified orientation: cathode on the left, anode on the
     # right, ORCHID forward bias V <-> Sesame bias -V
     sysm.contact_type("Schottky", "Schottky", left_wf=wf_cathode, right_wf=wf_anode)

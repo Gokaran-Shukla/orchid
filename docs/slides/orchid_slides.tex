@@ -45,7 +45,7 @@
 \small Multiscale charge \& exciton transport for OLEDs and organic solar cells}
 \author{Gokaran Shukla}
 \institute{KAUST, Thuwal, Saudi Arabia}
-\date{Technical presentation --- 13 November 2026 (v0.2.0)}
+\date{Technical presentation --- 13 November 2026 (v0.3.0)}
 
 \begin{document}
 \maketitle
@@ -93,8 +93,8 @@ PyPI name & \texttt{orchid-oe}\\
 CLI & \texttt{orchid}\\
 licence & MIT\\
 language & Python + Numba\\
-deps & numpy, scipy, numba\\ extras & MPI, AMG, GPU\\
-tests & 36 (pytest, CI)\\
+deps & numpy, scipy, numba\\ extras & MPI, AMG, GPU, PySCF\\
+tests & 49 (pytest, CI)\\
 \bottomrule
 \end{tabular}
 \end{columns}
@@ -594,7 +594,7 @@ $\Rightarrow$ $470\times$ at 3200 carriers; the same machinery drives the 3D dev
 \section{Validation against published results}
 
 \begin{frame}{Validation matrix}
-\scriptsize\setlength{\tabcolsep}{4pt}
+\tiny\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{0.95}
 \begin{tabular}{@{}llll@{}}
 \toprule
 \# & Quantity & Reference & Outcome\\
@@ -616,6 +616,12 @@ V14 & Madelung, images & exact constants / limits & $6\times10^{-10}$; $10^{-3}$
 V15 & DD and optics & \alert{NIST Sesame}, \alert{tmm} codes & $\Delta J/J_{sc}\le3\times10^{-6}$; $10^{-15}$\\
 V16 & parallel efficiency & ideal scaling & 2.0$\times$ on 2 cores (all levels)\\
 V17 & CELIV, TPV & Juška 2000; $1/(2\gamma n)$ & $\to$1.05; 1.14 (300\,nm)\\
+V18 & excitons in device & exact yield; bimolecular law & 0.802/0.800; const.\ $\gamma_{TT}$\\
+V19 & hetero DD, impedance & Sesame; $C_0=\tfrac34C_{geo}$ & $3\times10^{-6}$; 0.762, $f\tau$=0.725\\
+V20 & dipole outcoupling & CPS mirror formulas & $8\times10^{-4}$\\
+V21 & DIPRO, graphs & dimer splitting; lattice limit & 0.24\,\%; $10^{-13}$\\
+V22 & ML / Bayes & held-out data; coverage & 0.007 dec.; 3/3\\
+V23 & OFET, sublattice KMC & gradual channel; serial KMC & 0.97 / 1.06; 6--10\,\%\\
 \bottomrule
 \end{tabular}
 \end{frame}
@@ -773,6 +779,127 @@ Left: every CPU level reaches the ideal $2\times$ on the 2-core test node --- Nu
 (a) Photo-CELIV transients. (b) Juška mobility over input mobility tends to 1 as $qV(t_{max})/\kT$ grows: 1.36 at 8.5 and 1.05 at 310. Diffusion biases CELIV at low ramp rates, a point often overlooked in practice. (c) TPV: at 300\,nm and $\GR G=10^{28}$ an initial-decay fit gives $1.14\times$ the bulk Langevin value $1/(2\GR\gamma\Dn n)$, though the decay is not single-exponential. A 100\,nm device at 1 sun gives $3.8\times$: electrode/contact charge dominates (cf.\ Kiermasch \emph{et al.}, EES 2018).
 \end{frame}
 
+
+% =====================================================================
+\section{v0.3--0.4: the complete roadmap}
+
+\begin{frame}{All planned modules are now implemented (R16--R23)}
+\footnotesize
+\begin{tabular}{@{}lll@{}}
+\toprule
+item & module & validation\\
+\midrule
+R16 excitons in device KMC & \texttt{exciton\_device} & $\eta=k_r/(k_r+k_{nr})$; TTA loss $\propto n^2$\\
+R17 multilayer DD, Gaussian-DOS contacts & \texttt{MultilayerDevice} & heterojunction vs NIST Sesame\\
+R18 impedance, IMPS, IMVS & \texttt{smallsignal} & $C_{ins}=\varepsilon/L$; SCLC $C(0)\to\tfrac34C_{geo}$\\
+R19 2D DD (OFET, BHJ) & \texttt{dd2d} & gradual-channel model\\
+R20 dipole outcoupling, $n,k$, AM1.5G & \texttt{optics}, \texttt{materials} & CPS mirror formulas; BK7 $n_d$\\
+R21 morphology + DFT couplings & \texttt{morphology} & graph $\equiv$ lattice; DIPRO vs splitting\\
+R22 ML surrogates, Bayesian inversion & \texttt{ml} & held-out error; 95\,\% coverage\\
+R23 parallel-in-space KMC (CPU/GPU) & \texttt{sublattice\_kmc}, \texttt{gpu} & vs serial engine; CUDA simulator\\
+\bottomrule
+\end{tabular}
+\\[3mm]
+\texttt{orchid roadmap} $\Rightarrow$ \alert{23/23 done}. Each item has a module, a benchmark (V18--V23) and tests.
+\end{frame}
+
+\begin{frame}{R16: exciton KMC coupled to the 3D device KMC}
+\small
+Generation: positions and rate from device-KMC recombination events. Exciton events (Fenwick BKL):
+\[
+\Rt{k_{ij}}=k_d\Big(\frac{\Gx{R_0}}{\Gx{r_{ij}}}\Big)^6b(\Delta\En E),\qquad
+k_{dec}=k_r+k_{nr}+k_{m0}\Big(\frac{d_0}{z}\Big)^3
+\]
+\[
+\Rt{k_{q}}(i)=\Op{\sum_{pol}}k_{q0}\Big(\frac{\Gx{R_q}}{\Gx r}\Big)^6,\qquad
+\Rt{k_{TT}}(r)=k_{TT0}\Big(\frac{\Gx{R_{TT}}}{\Gx r}\Big)^6
+\]
+TTA removes one partner (T+T$\to$T+S$_0$); TPQ uses frozen polaron configurations drawn from the device-KMC $\Dn n(z),\Dn p(z)$.
+\[
+\mathrm{EQE}=\gamma_b\,\eta_{S/T}\,\eta_{rad}\,\eta_{out},\qquad \eta_{rad}=N_{rad}/N_{gen}
+\]
+Checks: loss-free yield equals $k_r/(k_r+k_{nr})$ (0.802 vs 0.800); steady density equals $G\tau$. The TTA loss rate per $n^2$ is constant (bimolecular law, $\gamma_{TT}$ within the scatter shown in V18) and lies below the uncorrelated estimate because close pairs are depleted.
+\end{frame}
+
+\begin{frame}{R17--R18: heterostructures and small-signal analysis}
+\small
+\textbf{Multilayer DD}: node-resolved $\En\chi,\En{E_g},N_c,N_v,\varepsilon,\Mu\mu$; SG band-offset terms
+\[
+\Delta_n=\frac{\Delta\Fd\psi+\Delta\En\chi}{\Tk{V_t}}+\ln\frac{N_{c,i+1}}{N_{c,i}},\qquad
+\Delta_p=\frac{\Delta\Fd\psi+\Delta(\En\chi+\En{E_g})}{\Tk{V_t}}-\ln\frac{N_{v,i+1}}{N_{v,i}}
+\]
+Work-function contacts ($V_{bi}=W_a-W_c$), Gaussian-DOS (Paasch--Scheinert) contact densities, flat-Fermi-level nonlinear Poisson start for large offsets.\\[2mm]
+\textbf{Impedance}: linearise $\mathbf R(\mathbf z,\Fd V,\GR G)=0$,
+\[
+(\mathbf J+i\omega\mathbf M)\,\delta\mathbf z=-\partial_V\mathbf R\,\delta\Fd V,\qquad
+Y=\frac{\delta\Js{J_c}+i\omega\varepsilon\,\delta\Fd F}{\delta\Fd V},\quad C=\frac{\operatorname{Im}Y}{\omega}
+\]
+IMPS uses $\partial_G\mathbf R$; IMVS$=-\mathrm{IMPS}/Y$ at open circuit.
+\end{frame}
+
+\begin{frame}{R19--R20: 2D drift--diffusion and dipole outcoupling}
+\small
+\textbf{2D DD} (\texttt{dd2d}): tensor grid; insulator/semiconductor node map (OFET, BHJ morphology); 2D SG fluxes with band offsets; contacts as node sets (gate, source/drain, anode/cathode). Sparse Newton with a \alert{distance-2 colouring $(i+2j)\bmod5$} $\times$ 3 variables $\Rightarrow$ 15 residual calls per Jacobian, sparse LU, backtracking line search, flat-$E_F$ Poisson start.\\[2mm]
+\textbf{Dipole emission} (plane-wave expansion, CPS / Furno 2012):
+\[
+K_{v}=\tfrac32\operatorname{Re}\Big[\frac{u^3}{\sqrt{1-u^2}}\frac{(1+a_-^p)(1+a_+^p)}{1-a_-^pa_+^p}\Big]
+\]
+\[
+K_{h}=\tfrac34\operatorname{Re}\Big[u\sqrt{1-u^2}\frac{(1-a_-^p)(1-a_+^p)}{1-a_-^pa_+^p}+\frac{u}{\sqrt{1-u^2}}\frac{(1+a_-^s)(1+a_+^s)}{1-a_-^sa_+^s}\Big]
+\]
+$a_\pm=r_\pm e^{2ik_zz_\pm}$ from multilayer recursion; substitutions $u=\sin t$, $u=\cosh t$ remove the $u=1$ singularity. Output: Purcell factor, air / substrate / waveguide / evanescent (SPP) fractions. Bundled refractiveindex.info data (CC0) and ASTM G173.
+\end{frame}
+
+\begin{frame}{R21--R23: morphology, machine learning, parallel-in-space KMC}
+\small
+\textbf{Morphology}: periodic random packings or MD centres; DIPRO
+$J_{eff}=\dfrac{J_{AB}-\frac12(e_A+e_B)S_{AB}}{1-S_{AB}^2}$ with PySCF; dipolar site energies; \texttt{MolecularGraph} feeds the same ME/KMC solvers.\\[2mm]
+\textbf{ML}: GP regression, ARD kernel, hyperparameters by exhaustive log-marginal-likelihood search; Bayesian inversion on exhaustive grids $\Rightarrow$ posterior, MAP, 95\,\% credible intervals.\\[2mm]
+\textbf{Sublattice KMC} (Shim \& Amar 2005): blocks of side $B\ge2r_c$ in a $2\times2\times2$ checkerboard. The 8 sublattices are visited in random order, and all blocks of one sublattice run in parallel for a window $\tau$ (Numba threads or one CUDA thread per block). There are no conflicts by construction. Exact as $\tau\to0$.
+\end{frame}
+
+\begin{frame}{V18 --- excitons in the device}
+\centering
+\includegraphics[width=0.8\linewidth]{v18_exciton_device.pdf}\\
+\footnotesize
+Left: in a periodic box the TTA loss per $n^2$ is density-independent ($\gamma_{TT}=2.4\times10^{-18}$\,m$^3$/s, $\pm7$\,\% for $n>3\times10^{22}$\,m$^{-3}$; the lowest-$n$ points are statistics-limited), so the bimolecular law $G=n/\tau+\gamma_{TT}n^2$ holds. Right: full chain from the 3D device KMC (HTL/EML/ETL, bipolar, Coulomb, images) to the exciton KMC. In this thin, slow-hopping test stack, metal quenching sets $\eta_{rad}$ (EQE $\approx6$\,\%). Polaron quenching halves the EQE and starts the roll-off; strong TTA roll-off needs higher current densities than simulated here.
+\end{frame}
+
+\begin{frame}{V19 --- heterojunction vs Sesame; impedance}
+\centering
+\includegraphics[width=0.8\linewidth]{v19_multilayer_impedance.pdf}\\
+\footnotesize
+Left: donor/acceptor bilayer with a 0.8\,eV LUMO offset (both carriers, SRH). Under illumination ORCHID and NIST Sesame differ by $3\times10^{-6}$ of $\max|J|$. The dark current, which is tiny here, agrees to 3\,\%. Right: trap-free SCLC admittance. $C(0)/C_{geo}=0.774$ (20\,V) and 0.762 (80\,V), tending to the analytic $3/4$ as diffusion fades; $f_{max}\tau_{dc}=0.725$ vs 0.72 reported for the transit-time feature (Martens \emph{et al.}). An insulator gives $C=\varepsilon/L$ to $10^{-12}$.
+\end{frame}
+
+\begin{frame}{V20 --- dipole emitters and outcoupling}
+\centering
+\includegraphics[width=0.8\linewidth]{v20_outcoupling.pdf}\\
+\footnotesize
+Left: decay rate near a perfect mirror. The plane-wave expansion reproduces the closed-form Chance--Prock--Silbey/Drexhage result (max error $8\times10^{-4}$). Right: bottom-emitting OLED (BK7/ITO/organic/Al, measured $n,k$). Power splits into air, substrate, waveguide and SPP channels, with an air fraction of up to 22\,\% at an 80\,nm emitter--cathode distance (the familiar $\approx$20\,\% first antinode).
+\end{frame}
+
+\begin{frame}{V21 --- DFT couplings and amorphous morphologies}
+\centering
+\includegraphics[width=0.8\linewidth]{v21_morphology.pdf}\\
+\footnotesize
+Left: DIPRO transfer integrals for cofacial ethylene dimers (HF/STO-3G via PySCF) match half the dimer frontier splitting to 0.24\,\%, with exponential decay $\beta=2.9\,$\AA$^{-1}$ for this minimal basis. Right: master equation on a 2000-molecule amorphous packing with dipolar (correlated) energetic disorder vs a cubic lattice with Gaussian disorder of the same $\En\sigma$. Coordination and correlation both differ, so the morphology input changes the mobility and its activation.
+\end{frame}
+
+\begin{frame}{V22 --- surrogate model and Bayesian inversion}
+\centering
+\includegraphics[width=0.8\linewidth]{v22_ml.pdf}\\
+\footnotesize
+Left: a GP surrogate trained on 55 master-equation points ($\sh$, $\log p$) predicts 26 held-out points with RMSE 0.007 decades over a 3-decade range. Right: exhaustive-grid posterior for the GDM width from noisy synthetic data. The 95\,\% credible intervals of $\En\sigma$, $\Mu{\mu_\infty}$ and $\Sigma$ all contain the true values.
+\end{frame}
+
+\begin{frame}{V23 --- OFET and parallel-in-space KMC}
+\centering
+\includegraphics[width=0.8\linewidth]{v23_ofet_sublattice.pdf}\\
+\footnotesize
+Left: 2D bottom-gate OFET (grid refined at the edge contacts) output curves vs the gradual-channel model with the extracted $V_T=-0.08$\,V. The mobility extracted from the simulated curves is 0.97 of the input in the linear regime and 1.06 in saturation (single-point, includes channel-length modulation). Right: synchronous-sublattice KMC reproduces the serial Fenwick engine within 6--10\,\% at window $\tau=10/\Gamma_{max}$ (systematic, shrinks with $\tau$).
+\end{frame}
+
 % =====================================================================
 \section{Software engineering}
 
@@ -788,8 +915,11 @@ orchid/
            exciton  optics  devices
            search  parallel  gpu
            roadmap  cli
-  tests/test_orchid.py        (36 tests)
-  validation/bench_*.py       (V1-V17)
+           exciton_device smallsignal dd2d
+           materials morphology ml
+           sublattice_kmc  data/(nk, AM1.5G)
+  tests/test_orchid.py        (49 tests)
+  validation/bench_*.py       (V1-V23)
   validation/_sesame_runner.py
   validation/figures, results/*.json
   examples/  docs/slides/
@@ -798,7 +928,7 @@ orchid/
 \end{verbatim}
 \column{0.52\textwidth}\small
 \begin{itemize}
-\item 36 tests: physics limits, solver cross-checks, detailed balance, device-KMC equilibrium and symmetry, CELIV, transient $\to$ steady state, Fenwick tree, parallel backends, CUDA simulator, roadmap integrity.
+\item 49 tests: physics limits, solver cross-checks, detailed balance, device-KMC equilibrium and symmetry, CELIV, transient $\to$ steady state, Fenwick tree, parallel backends, CUDA simulator, roadmap integrity.
 \item CI on Python 3.10--3.12.
 \item Optional extras: \texttt{[mpi]}, \texttt{[amg]}, \texttt{[gpu]}, \texttt{[validate]}, \texttt{[all]}.
 \item Every benchmark writes figures and JSON; external codes run in isolated subprocesses.
@@ -844,33 +974,33 @@ mpiexec -n 64 python study.py  # any parallel_map spreads across 64 ranks
 \rmbox{0}{4}{cF}{R05 1D DD}\rmbox{0}{5}{cG}{R06 optics}\rmbox{0}{6}{cG}{R07 excitons}\rmbox{0}{7}{cOp}{R08 search}
 \rmbox{3.5}{0}{cJ}{R09 MPI/threads}\rmbox{3.5}{1}{cJ}{R10 GPU kernels}\rmbox{3.5}{2}{cMu}{R11 $\log N$ KMC}\rmbox{3.5}{3}{cF}{R12 Ewald/images}
 \rmbox{3.5}{4}{cMu}{R13 3D device KMC}\rmbox{3.5}{5}{cF}{R14 transient DD}\rmbox{3.5}{6}{cMu}{R15 AMG, size extrap.}
-\rmbox{7}{0}{gray}{R16 excitons in dev.\ KMC}\rmbox{7}{1}{gray}{R17 multilayer DD}\rmbox{7}{2}{gray}{R18 impedance/IMPS}
-\rmbox{7}{3}{gray}{R19 2D/3D DD, OFET}\rmbox{7}{4}{gray}{R20 dipole outcoupling}
-\rmbox{10.5}{0}{gray}{R21 MD+DFT inputs}\rmbox{10.5}{1}{gray}{R22 ML surrogates}\rmbox{10.5}{2}{gray}{R23 GPU device KMC}
-\node[anchor=west,font=\small] at (0,-8.6) {coloured: done (15/23, with validation)\quad grey: planned};
+\rmbox{7}{0}{cG}{R16 excitons in dev.\ KMC}\rmbox{7}{1}{cF}{R17 multilayer DD}\rmbox{7}{2}{cF}{R18 impedance/IMPS}
+\rmbox{7}{3}{cF}{R19 2D/3D DD, OFET}\rmbox{7}{4}{cG}{R20 dipole outcoupling}
+\rmbox{10.5}{0}{cE}{R21 MD+DFT inputs}\rmbox{10.5}{1}{cN}{R22 ML surrogates}\rmbox{10.5}{2}{cJ}{R23 GPU device KMC}
+\node[anchor=west,font=\small] at (0,-8.6) {all 23 items done, each with a module, benchmark and tests};
 \end{tikzpicture}
 \end{frame}
 
-\begin{frame}{Honest limitations of v0.2}
+\begin{frame}{Honest limitations of v0.3}
 \small
 \begin{itemize}
-\item \textbf{Scaling demonstrated only on 2 cores.} The task farm has no inter-task communication, so near-ideal weak scaling is expected, but it has not been measured on a cluster. The GPU path is verified in the CUDA simulator, not on hardware.
-\item \textbf{Device KMC}: excitons recombine instantly on formation (no exciton diffusion, TTA or TPQ yet, R16). The long-range Coulomb part is mean field, refreshed every $N_{mf}$ events. Single-site exclusion for both species.
-\item The 3D KMC exceeds 1D EGDM drift--diffusion at high field. This is physics (filaments, EGDM validity range), but the size dependence still has to be quantified.
-\item 1D DD only for multilayers in continuum; Boltzmann contact statistics.
-\item Finite-size effects in bulk ME/KMC at $\sh\ge4$ (V1/V2) --- now quantifiable with \texttt{finite\_size\_extrapolation}.
-\item Not yet compared against commercial device-KMC tools (e.g.\ \textsc{Bumblebee}), which are not publicly available.
+\item \textbf{Scale not demonstrated}: parallel speed-up measured on 2 cores only; the GPU kernels are verified in the CUDA simulator, not on hardware. Running the benchmarks on Shaheen is the next step.
+\item \textbf{Couplings, not concurrency}: excitons are coupled to the device KMC sequentially (generation profile and frozen polarons), not in one simultaneous event loop.
+\item 2D DD: unipolar OFETs are robust. Bipolar 2D morphologies with vanishing minority densities may need continuation in light intensity.
+\item Sublattice KMC carries a window-size error of 6--10\,\% at $\tau=10/\Gamma_{max}$; smaller $\tau$ costs more cycles.
+\item DIPRO is shown with HF/minimal basis; production couplings need DFT and larger bases (PySCF supports both).
+\item The 3D device KMC is not compared against commercial device-KMC codes, which are not publicly available. The heterojunction DD is compared against NIST Sesame only in its Boltzmann/SRH regime.
 \end{itemize}
 \end{frame}
 
 \begin{frame}{Publishing to GitHub}
 \small
 \begin{enumerate}
-\item Repository is committed locally on \texttt{main} (v0.1.0 + v0.2.0 commits).
+\item Repository is committed locally on \texttt{main} (v0.1.0, v0.2.0, v0.3.0 commits).
 \item Create empty repo \texttt{Gokaran-Shukla/orchid} (public, no README).
 \item \texttt{git remote add origin git@github.com:Gokaran-Shukla/orchid.git}
-\item \texttt{git push -u origin main} $\Rightarrow$ CI runs the 36 tests.
-\item Tag \texttt{v0.2.0}; add topics (organic-electronics, oled, kinetic-monte-carlo, drift-diffusion, mpi, gpu); Zenodo DOI.
+\item \texttt{git push -u origin main} $\Rightarrow$ CI runs the 49 tests.
+\item Tag \texttt{v0.3.0}; add topics (organic-electronics, oled, kinetic-monte-carlo, drift-diffusion, mpi, gpu); Zenodo DOI.
 \item Optional: run \texttt{validation/bench\_*.py} on KAUST Shaheen with \texttt{mpiexec} to record real multi-node scaling for the paper.
 \end{enumerate}
 \end{frame}
@@ -903,6 +1033,12 @@ mpiexec -n 64 python study.py  # any parallel_map spreads across 64 ranks
 \item G.\ Juška \emph{et al.}, Phys.\ Rev.\ Lett.\ 84, 4946 (2000); A.\ J.\ Lorrmann \emph{et al.}, J.\ Appl.\ Phys.\ 108, 113705 (2010) --- CELIV.
 \item C.\ G.\ Shuttle \emph{et al.}, Appl.\ Phys.\ Lett.\ 92, 093311 (2008); D.\ Kiermasch \emph{et al.}, Energy Environ.\ Sci.\ 11, 629 (2018) --- TPV.
 \item P.\ P.\ Ewald, Ann.\ Phys.\ 369, 253 (1921) --- lattice sums.
+\item R.\ R.\ Chance, A.\ Prock, R.\ Silbey, Adv.\ Chem.\ Phys.\ 37, 1 (1978); M.\ Furno \emph{et al.}, Phys.\ Rev.\ B 85, 115205 (2012) --- dipole emission.
+\item E.\ F.\ Valeev \emph{et al.}, J.\ Am.\ Chem.\ Soc.\ 128, 9882 (2006); B.\ Baumeier \emph{et al.}, PCCP 12, 11103 (2010) --- DIPRO; Q.\ Sun \emph{et al.}, J.\ Chem.\ Phys.\ 153, 024109 (2020) --- PySCF.
+\item Y.\ Shim, J.\ G.\ Amar, Phys.\ Rev.\ B 71, 125432 (2005) --- synchronous sublattice KMC.
+\item P.\ W.\ M.\ Blom/H.\ C.\ F.\ Martens \emph{et al.}, Phys.\ Rev.\ B 60, R8489 (1999) --- SCLC admittance.
+\item G.\ Horowitz, Adv.\ Mater.\ 10, 365 (1998) --- OFET gradual-channel analysis.
+\item M.\ N.\ Polyanskiy, refractiveindex.info database (CC0); ASTM G173-03 reference spectrum (NREL).
 \item NIST Sesame: B.\ Gaudreau \emph{et al.}, J.\ Appl.\ Phys.\ (2019); github.com/usnistgov/sesame.
 \item S.\ J.\ Byrnes, arXiv:1603.02720 --- \texttt{tmm} package.
 \item P.\ M.\ Fenwick, Softw.\ Pract.\ Exper.\ 24, 327 (1994) --- binary indexed trees.

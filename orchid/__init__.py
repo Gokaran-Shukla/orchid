@@ -24,8 +24,16 @@ diodes):
     parallel         MPI x processes x Numba-thread hybrid parallel layer
     gpu              CUDA KMC kernel, CuPy master-equation solver
     roadmap          machine-readable development roadmap
+    exciton_device   exciton KMC coupled to the device KMC (TTA, TPQ, roll-off)
+    smallsignal      impedance / admittance, IMPS, IMVS
+    dd2d             2D drift-diffusion (OFETs, bulk heterojunctions)
+    materials        refractiveindex.info n,k database, ASTM G173 spectrum
+    morphology       molecular packings, DIPRO couplings (PySCF), hopping graphs
+    ml               Gaussian-process surrogates, Bayesian inversion
+    sublattice_kmc   parallel-in-space interacting KMC (CPU / CUDA)
 """
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = ["rates", "lattice", "kmc", "master_equation", "models",
            "drift_diffusion", "exciton", "optics", "devices", "search", "device_kmc",
-           "electrostatics", "transient", "parallel", "gpu", "roadmap"]
+           "electrostatics", "transient", "parallel", "gpu", "roadmap", "exciton_device",
+           "smallsignal", "dd2d", "materials", "morphology", "ml", "sublattice_kmc"]

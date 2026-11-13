@@ -1,8 +1,8 @@
 # ORCHID roadmap
 
-This file is generated from `orchid/roadmap.py` (`orchid roadmap` prints it). Every item marked done has an importable module and a validation target. The test suite checks both.
+This file is generated from `orchid/roadmap.py`; `orchid roadmap` prints it. Every item has an importable module, a validation benchmark (`validation/`) and tests.
 
-Status: **15 of 23 items done** (v0.1 and v0.2). v0.3 and v0.4 are planned.
+Status: **all 23 items done** (v0.1 to v0.4).
 
 ## v0.1: multiscale core
 
@@ -17,7 +17,7 @@ Status: **15 of 23 items done** (v0.1 and v0.2). v0.3 and v0.4 are planned.
 | R07 | done | Exciton KMC (Förster/Dexter) and emission-zone continuum with annihilation | `orchid.exciton` | D = sum k r^2 / 6 |
 | R08 | done | Exhaustive grid / zoom / Latin-hypercube search | `orchid.search` | parameter recovery |
 
-## v0.2: 3D device KMC, transients, massive parallelism (this release)
+## v0.2: 3D device KMC, transients, massive parallelism
 
 | ID | Status | Item | Module | Validation |
 |---|---|---|---|---|
@@ -29,31 +29,35 @@ Status: **15 of 23 items done** (v0.1 and v0.2). v0.3 and v0.4 are planned.
 | R14 | done | Transient DD: CELIV, TPV, TPC, arbitrary V(t)/G(t) | `orchid.transient` | Juska CELIV formula; TPV small perturbation |
 | R15 | done | AMG-preconditioned ME and finite-size extrapolation | `orchid.master_equation` | 10-20x fewer CG iterations |
 
-## v0.3: device physics completeness (planned)
+## v0.3: device-physics completeness
 
 | ID | Status | Item | Module | Validation |
 |---|---|---|---|---|
-| R16 | planned | Exciton dynamics inside device KMC: TTA, TPQ, SPA, Förster to guests, phosphorescent emitters | `orchid.device_kmc` | Mesta et al. Nat. Mater. 12, 652 (2013) roll-off |
-| R17 | planned | Multilayer heterojunction DD with Gaussian-DOS (Paasch-Scheinert) contact statistics | `orchid.drift_diffusion` | van Mensfoort 2010 multilayer OLED |
-| R18 | planned | Small-signal impedance spectroscopy and IMPS/IMVS | `orchid.transient` | analytic RC / transit-time spectra |
-| R19 | planned | 2D/3D drift-diffusion for OFETs and bulk-heterojunction morphologies | `orchid.dd2d` | Sesame 2D benchmarks |
-| R20 | planned | Dipole-emitter microcavity outcoupling (Chance-Prock-Silbey), ASTM G173 spectrum, n,k database | `orchid.optics` | published OLED outcoupling spectra |
+| R16 | done | Exciton KMC in devices: generation from device KMC, Förster hopping, TTA, TPQ, metal quenching -> EQE roll-off | `orchid.exciton_device` | eta = kr/(kr+knr) exactly; TTA loss = gamma n^2 (constant gamma) |
+| R17 | done | Multilayer heterostructure DD (band offsets, per-layer materials) with Gaussian-DOS contact statistics | `orchid.drift_diffusion` | D/A heterojunction vs NIST Sesame |
+| R18 | done | Small-signal impedance / admittance spectroscopy, IMPS, IMVS | `orchid.smallsignal` | insulator C=eps/L; SCLC C(0)=3/4 C_geo, f_max tau_dc = 0.72 |
+| R19 | done | 2D drift-diffusion for OFETs and bulk-heterojunction morphologies (sparse Newton, 15-colour Jacobian) | `orchid.dd2d` | OFET vs gradual-channel model (linear + saturation mobility) |
+| R20 | done | Dipole-emitter outcoupling (CPS / plane-wave expansion), ASTM G173 spectrum, refractiveindex.info n,k database | `orchid.optics` | CPS perfect-mirror formulas; BK7 n_d = 1.5168; AM1.5G = 1000 W/m^2 |
 
-## v0.4: first principles and machine learning (planned)
+## v0.4: first principles, machine learning, parallel-in-space KMC
 
 | ID | Status | Item | Module | Validation |
 |---|---|---|---|---|
-| R21 | planned | MD morphologies + DFT transfer integrals/site energies (VOTCA-like) for parameter-free mobilities | `orchid.morphology` | VOTCA-XTP benchmark systems |
-| R22 | planned | ML surrogates of mu(T,p,F) and J-V trained on ORCHID data; Bayesian inversion | `orchid.ml` | held-out ME/KMC data |
-| R23 | planned | GPU interacting and device KMC (parallel-in-space sublattice KMC) | `orchid.gpu` | bitwise statistics vs CPU engine |
+| R21 | done | Molecular morphologies + DFT transfer integrals (DIPRO/PySCF) + dipolar site energies on hopping graphs | `orchid.morphology` | graph = lattice ME exactly; DIPRO J_eff = half dimer splitting |
+| R22 | done | Gaussian-process surrogates of mu(T,p) trained on ORCHID data; exhaustive-grid Bayesian inversion | `orchid.ml` | held-out RMSE; truth inside 95 % credible intervals |
+| R23 | done | Parallel-in-space interacting KMC (synchronous sublattice), CPU threads + CUDA kernel | `orchid.sublattice_kmc` | agrees with serial Fenwick KMC; CUDA simulator test |
 
 ## Parallel strategy
 
 | Level | Mechanism | Scales to | Used by |
 |---|---|---|---|
-| GPU | CUDA kernel, one walker per thread; CuPy sparse CG | 10^5 to 10^6 walkers per GPU | `orchid.gpu` |
-| Threads | Numba `prange` (no GIL) | all cores of a node | KMC, exciton KMC |
-| Processes | `ProcessPoolExecutor` | one node | `parallel_map`, `search` |
+| GPU | CUDA kernels: independent walkers, synchronous-sublattice interacting KMC; CuPy sparse CG | 10^5 to 10^6 walkers or blocks per GPU | `orchid.gpu` |
+| Threads | Numba `prange` (no GIL) | all cores of a node | KMC, exciton KMC, sublattice KMC |
+| Processes | `ProcessPoolExecutor` | one node | `parallel_map`, `search`, `ml` |
 | MPI | mpi4py block-cyclic task farm | thousands of ranks | disorder ensembles, T/F/p sweeps, J-V sets, search grids |
 
-Launch on a cluster: `export NUMBA_NUM_THREADS=t; mpiexec -n R python study.py`. Any `parallel_map` call then spreads its tasks over the R ranks.
+## Next steps (not yet scheduled)
+
+- Hardware scaling study on a cluster and GPUs (the code paths exist; only 2 CPU cores were available during development).
+- Exciton and charge events in a single concurrent device-KMC event loop.
+- DFT-level (larger basis) coupling database and automated morphology import from MD trajectories.

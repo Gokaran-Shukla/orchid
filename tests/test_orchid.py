@@ -319,7 +319,7 @@ def test_roadmap_done_items_importable():
         if r["status"] == "done":
             importlib.import_module(r["module"])
     d, n = roadmap.progress()
-    assert 0 < d < n
+    assert d == n
 
 
 def test_device_kmc_electron_hole_symmetry():
@@ -330,3 +330,138 @@ def test_device_kmc_electron_hole_symmetry():
     Jh = np.mean([dh.run(2.5, n_eq=20000, n_meas=80000, seed=s)["J"] for s in (1, 2)])
     Je = np.mean([de.run(2.5, n_eq=20000, n_meas=80000, seed=s)["J"] for s in (1, 2)])
     assert abs(Jh / Je - 1) < 0.35
+
+
+# ================================================================= v0.3 / v0.4 modules
+from orchid.exciton_device import ExcitonDeviceKMC
+from orchid.drift_diffusion import MultilayerDevice
+from orchid.smallsignal import admittance
+from orchid.optics import dipole_emission, cps_perfect_mirror
+from orchid.materials import nk, am15g, available as nk_available
+from orchid.morphology import MolecularGraph, random_packing, dipro
+from orchid.ml import GPSurrogate, bayes_grid
+from orchid.sublattice_kmc import mobility_sublattice
+from orchid.dd2d import ofet
+
+
+def test_exciton_yield_without_losses():
+    x = ExcitonDeviceKMC((10, 10, 10), tau_r=1e-6, tau_nr=4e-6, periodic_z=True)
+    r = x.run(1e24, n_events=100000, n_eq=20000)
+    assert abs(r["eta_rad"] - 0.8) < 0.02
+    assert abs(r["n_ex"] / (1e24 * 0.8e-6) - 1) < 0.1
+
+
+def test_exciton_tta_reduces_yield():
+    x = ExcitonDeviceKMC((12, 12, 12), tau_r=1e-6, tau_nr=4e-6, periodic_z=True, k_TT0=1e8, R_TT=1.5)
+    r = x.run(5e29, n_events=150000, n_eq=50000)
+    assert r["frac_TTA"] > 0.1 and r["eta_rad"] < 0.75
+
+
+def test_multilayer_single_layer_equals_device():
+    lay = [dict(d=100e-9, Eg=1.2, chi=3.9, eps_r=3.5, mu_n=1e-8, mu_p=1e-8, G=1e27)]
+    m = MultilayerDevice(lay, W_anode=5.0, W_cathode=4.0, nodes_per_layer=120)
+    d = Device(L=100e-9, N=121, Eg=1.2, mu_n=1e-8, mu_p=1e-8, G=1e27, grid_beta=2.0)
+    V = np.linspace(-0.2, 0.7, 7)
+    assert np.allclose(m.jv(V)["J"], d.jv(V)["J"], rtol=1e-8)
+
+
+def test_heterojunction_converges_and_blocks():
+    lay = [dict(d=40e-9, Eg=1.9, chi=3.0, eps_r=3.5, mu_n=1e-8, mu_p=1e-8, G=1e27),
+           dict(d=40e-9, Eg=1.9, chi=3.8, eps_r=3.8, mu_n=1e-8, mu_p=1e-8, G=1e27)]
+    m = MultilayerDevice(lay, W_anode=4.8, W_cathode=3.9, nodes_per_layer=50)
+    r = m.jv(np.array([0.0, 0.5]))
+    assert r["J"][0] < 0                      # photocurrent at short circuit
+    pr = r["profiles"][0]
+    assert np.std(pr["Jn"] + pr["Jp"]) / abs(np.mean(pr["Jn"] + pr["Jp"])) < 1e-5
+
+
+def test_impedance_insulator_and_sclc():
+    L = 100e-9
+    ins = Device(L=L, N=81, Eg=3.0, phi_anode_p=1.5, phi_cathode_n=1.5, recombination=False)
+    C = admittance(ins, 0.0, [1e3, 1e6])["C"]
+    assert np.allclose(C / (eps0 * 3.5 / L), 1.0, rtol=1e-4)
+    d = Device(L=L, N=161, Eg=2.4, phi_anode_p=0.0, phi_cathode_n=1.0, mu_n=1e-12, mu_p=1e-8,
+               recombination=False)
+    tdc = 4 / 3 * L ** 2 / (1e-8 * (40 - 1.4))
+    c0 = admittance(d, 40.0, [1e-3 / tdc])["C"][0] / (eps0 * 3.5 / L)
+    assert abs(c0 - 0.75) < 0.03
+
+
+def test_dipole_free_space_and_mirror():
+    for th in (0.0, 1 / 3, 1.0):
+        F = dipole_emission(500e-9, [(1.7, 0)], (1.7, 100e-9), [(1.7, 0)], 50e-9, theta=th)["F"]
+        assert abs(F - 1) < 2e-3
+    d = 60e-9
+    x = 2 * 2 * np.pi * 1.7 / 500e-9 * d
+    Fv, Fh = cps_perfect_mirror(x)
+    rv = dipole_emission(500e-9, [(1.7, 0)], (1.7, d), [(1e6j, 0)], 0, theta=1, u_max=60, n_ev=40000)["F"]
+    rh = dipole_emission(500e-9, [(1.7, 0)], (1.7, d), [(1e6j, 0)], 0, theta=0, u_max=60, n_ev=40000)["F"]
+    assert abs(rv - Fv) < 3e-3 and abs(rh - Fh) < 1e-4
+
+
+def test_materials_database():
+    assert {"Al", "Ag", "ITO", "BK7"} <= set(nk_available())
+    assert abs(nk("BK7")(587.6e-9).real - 1.5168) < 1e-4
+    assert abs(nk("SiO2")(587.6e-9).real - 1.4585) < 1e-3
+    l, E = am15g()
+    assert abs(np.trapezoid(E, l) - 1000.4) < 1.0
+
+
+def test_molecular_graph_equals_lattice():
+    L, a = 8, 1.6e-9
+    lat = Lattice(L, a=a, seed=3).set_disorder(0.08)
+    g = np.stack(np.unravel_index(np.arange(L ** 3), (L, L, L)), 1) * a
+    G = MolecularGraph(g, np.array([L * a] * 3), r_cut=np.sqrt(3) * a * 1.0001, energies=lat.energy)
+    m1 = me_linear_response(lat, 300, 1e-6, alpha=10.0)[0]
+    m2 = me_linear_response(G, 300, 1e-6, alpha=10.0)[0]
+    assert abs(m1 / m2 - 1) < 1e-8
+
+
+def test_dipro_formula():
+    # orthogonal monomer orbitals in an orthonormal basis: J_eff = F_AB
+    F = np.array([[-0.5, 0.0, 0.02, 0.0], [0.0, -0.3, 0.0, 0.0], [0.02, 0.0, -0.5, 0.0], [0, 0, 0, -0.3]])
+    r = dipro(F, np.eye(4), np.array([1.0, 0.0]), np.array([1.0, 0.0]), 2)
+    assert abs(r["J_eff"] - 0.02) < 1e-12
+
+
+def test_random_packing_hard_core():
+    box = np.array([10e-9] * 3)
+    p = random_packing(300, box, 1e-9, seed=1)
+    d = p[:, None] - p[None]
+    d -= box * np.round(d / box)
+    r = np.sqrt((d ** 2).sum(-1)) + np.eye(len(p))
+    assert r.min() >= 1e-9 - 1e-15
+
+
+def test_gp_surrogate_and_bayes():
+    x = np.linspace(0, 1, 25)[:, None]
+    y = np.sin(4 * x[:, 0])
+    gp = GPSurrogate().fit(x[::2], y[::2])
+    assert np.max(np.abs(gp.predict(x[1::2]) - y[1::2])) < 0.02
+    data = 2.0 * np.arange(1, 6) ** 1.5
+    r = bayes_grid(lambda p: p["A"] * np.arange(1, 6) ** p["b"], data,
+                   dict(A=np.linspace(1, 3, 41), b=np.linspace(1, 2, 41)), 0.01)
+    assert abs(r["map"]["A"] - 2.0) < 0.06 and abs(r["map"]["b"] - 1.5) < 0.03
+
+
+def test_sublattice_kmc_matches_serial():
+    T = SIG / (kB_eV * 2.5)
+    lat = Lattice(8, a=1.6e-9, seed=3).set_disorder(SIG)
+    W = lat.rates(T, (0.005, 0, 0), alpha=10.0)
+    tau = 10 / W.sum(1).max()
+    sub = np.mean([mobility_sublattice(lat, T, 0.05 * SIG, 0.05, B=4, tau=tau, n_cycles=6000, n_eq=600,
+                                       seed=k)[0] for k in (1, 2, 3)])
+    ser = np.mean([mobility_interacting(lat, T, 0.05 * SIG, 0.05, n_eq=50000, n_meas=400000, seed=k)
+                   for k in (1, 2, 3)])
+    assert abs(sub / ser - 1) < 0.2
+
+
+def test_ofet_linear_mobility():
+    d = ofet(Nx=21, ny_ox=6, ny_s=20)
+    z = None
+    I = []
+    for VG in (-8.0, -12.0):
+        z = d.solve({"gate": VG, "drain": -0.2}, z0=z)
+        I.append(-d.contact_current(z, {"gate": VG, "drain": -0.2}, "drain"))
+    mu = (I[1] - I[0]) / 4.0 * d.L_ch / (d.C_i * 0.2)
+    assert abs(mu / 1e-6 - 1) < 0.1
