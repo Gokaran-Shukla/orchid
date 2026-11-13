@@ -35,7 +35,7 @@ analytical limit or a published result (see `validation/`).
 | `morphology` | amorphous packings, DIPRO transfer integrals (PySCF), dipolar site energies, hopping graphs | VOTCA-style |
 | `ml` | Gaussian-process surrogates, exhaustive-grid Bayesian inversion | NumPy |
 | `sublattice_kmc` | parallel-in-space interacting KMC (Shim–Amar), CPU threads and CUDA | synchronous sublattice |
-| `roadmap` | machine-readable roadmap (`orchid roadmap`), see ROADMAP.md: **23/23 done** | — |
+| `roadmap` | machine-readable roadmap (`orchid roadmap`), see ROADMAP.md | — |
 
 ## Install
 
