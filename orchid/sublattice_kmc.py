@@ -155,3 +155,59 @@ try:
     HAVE_CUDA_API = True
 except Exception:  # pragma: no cover
     HAVE_CUDA_API = False
+
+
+def mobility_sublattice_extrapolated(lat, T, F_red, density, factors=(4.0, 2.0, 1.0),
+                                     tau0=None, order=None, sim_time_factor=40000.0, B=4,
+                                     seeds=(1, 2), **rate_kw):
+    """Remove the time-window bias of the synchronous-sublattice algorithm
+    (roadmap R25, v0.4).
+
+    The sublattice algorithm is exact only in the limit tau -> 0. In
+    practice it is run at a finite window and so is biased (v0.3: about
+    6-10 % at tau = 10 tau0). This function runs it at windows
+    ``tau = f * tau0`` for every f in ``factors``, holding the simulated
+    time fixed (``n_cycles`` proportional to 1/f). It then fits
+    ``mu(tau) = mu_0 + c_1 tau (+ c_2 tau^2)`` by weighted least squares
+    and extrapolates to tau -> 0. ``order`` defaults to 2 with three or
+    more windows, else 1 (Richardson).
+
+    tau0 defaults to 1 / max_i sum_j W_ij. Returns
+    (mu_0, info), where info holds the per-window means and standard
+    errors, the fitted coefficients and an extrapolation uncertainty.
+    The uncertainty is the larger of the propagated statistical error and
+    the |order-1 minus order-2| difference, when three or more windows
+    are given.
+    """
+    W = lat.rates(T, (F_red, 0.0, 0.0), **rate_kw)
+    if tau0 is None:
+        tau0 = 1.0 / W.sum(1).max()
+    taus, mus, errs = [], [], []
+    for f in factors:
+        n_cyc = max(200, int(sim_time_factor / f))
+        vals = [mobility_sublattice(lat, T, F_red, density, B=B, tau=f * tau0,
+                                    n_cycles=n_cyc, n_eq=max(50, n_cyc // 10), seed=s,
+                                    **rate_kw)[0] for s in seeds]
+        taus.append(f * tau0)
+        mus.append(np.mean(vals))
+        errs.append(np.std(vals, ddof=1) / np.sqrt(len(vals)) if len(vals) > 1 else 0.0)
+    taus, mus, errs = map(np.asarray, (taus, mus, errs))
+    x = taus / tau0
+    w = 1.0 / np.maximum(errs, 1e-3 * np.abs(mus))
+
+    def fit(o):
+        A = np.vander(x, o + 1, increasing=True)
+        coef, *_ = np.linalg.lstsq(A * w[:, None], mus * w, rcond=None)
+        cov = np.linalg.pinv((A * w[:, None]).T @ (A * w[:, None]))
+        return coef, np.sqrt(max(cov[0, 0], 0.0))
+
+    if order is None:
+        order = 2 if len(x) >= 3 else 1
+    o = min(order, len(x) - 1)
+    coef, stat = fit(o)
+    sys_err = 0.0
+    if len(x) >= 3:
+        c_alt, _ = fit(2 if o == 1 else 1)
+        sys_err = abs(c_alt[0] - coef[0])
+    return coef[0], dict(tau0=tau0, taus=taus, mu=mus, mu_err=errs, coef=coef, order=o,
+                         err=max(stat, sys_err), stat_err=stat, sys_err=sys_err)

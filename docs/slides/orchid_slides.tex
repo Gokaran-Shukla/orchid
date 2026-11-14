@@ -45,7 +45,7 @@
 \small Multiscale charge \& exciton transport for OLEDs and organic solar cells}
 \author{Gokaran Shukla}
 \institute{KAUST, Thuwal, Saudi Arabia}
-\date{Technical presentation --- 13 November 2026 (v0.3.0)}
+\date{Technical presentation --- 14 November 2026 (v0.4.0)}
 
 \begin{document}
 \maketitle
@@ -593,13 +593,13 @@ $\Rightarrow$ $470\times$ at 3200 carriers; the same machinery drives the 3D dev
 % =====================================================================
 \section{Validation against published results}
 
-\begin{frame}{Validation matrix}
+\begin{frame}{Validation matrix (1/2) --- all re-run for v0.4.0}
 \tiny\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{0.95}
 \begin{tabular}{@{}llll@{}}
 \toprule
 \# & Quantity & Reference & Outcome\\
 \midrule
-V1 & $\Mu\mu(\Tk T)$, $\Dn p\to0$ & EGDM, Pasveer PRL 94, 206601 (2005) & ME$=$KMC (3--10\,\%); $\le1.2\times$ EGDM for $\sh\le3$\\
+V1 & $\Mu\mu(\Tk T)$, $\Dn p\to0$ & EGDM, Pasveer PRL 94, 206601 (2005) & ME$=$KMC (3--10\,\%); $\le1.3\times$ EGDM for $\sh\le3$\\
 V2 & $\Mu\mu(\Dn p)$ & EGDM $g_1$ & ME$=$exclusion KMC (1--7\,\%); EGDM for $\sh=3,4$\\
 V3 & $\Mu\mu(\Fd F)$ & EGDM $g_2$ & quantitative at $\sh=3$; $\pm30$\,\% at $\sh=2,4$\\
 V4 & $\langle\En E\rangle_\infty$ & $-\En\sigma^2/\kT$ (Bässler 1993) & 1.7\,\% at $\sh=2$; finite-sample limit at $\sh=3$\\
@@ -613,6 +613,16 @@ V11 & Marcus vs MA & inverted region, detailed balance & $7\times10^{-15}$\\
 V12 & OLED / OPV & device physics trends & roll-off, emission zone, PCE\\
 V13 & 3D device KMC & 1D DD (van der Holst 2009) & $\le1.6\times$ up to 2\,V; $J(0)=0$\\
 V14 & Madelung, images & exact constants / limits & $6\times10^{-10}$; $10^{-3}$\\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{Validation matrix (2/2) --- 26/26 quantitative checks pass}
+\tiny\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\# & Quantity & Reference & Outcome\\
+\midrule
 V15 & DD and optics & \alert{NIST Sesame}, \alert{tmm} codes & $\Delta J/J_{sc}\le3\times10^{-6}$; $10^{-15}$\\
 V16 & parallel efficiency & ideal scaling & 2.0$\times$ on 2 cores (all levels)\\
 V17 & CELIV, TPV & Juška 2000; $1/(2\gamma n)$ & $\to$1.05; 1.14 (300\,nm)\\
@@ -622,6 +632,10 @@ V20 & dipole outcoupling & CPS mirror formulas & $8\times10^{-4}$\\
 V21 & DIPRO, graphs & dimer splitting; lattice limit & 0.24\,\%; $10^{-13}$\\
 V22 & ML / Bayes & held-out data; coverage & 0.007 dec.; 3/3\\
 V23 & OFET, sublattice KMC & gradual channel; serial KMC & 0.97 / 1.06; 6--10\,\%\\
+V24 & concurrent excitons & exact yield, bookkeeping; v0.3 pipeline & $+0.6\sigma$; 0; EQE $+$18--30\,\%\\
+V25 & sublattice $\tau\to0$ & serial Fenwick KMC & 5.2\,\% $\to$ 0.6\,\%\\
+V26 & MD import & exact centres; lattice ME & $10^{-24}$\,m; $3\times10^{-14}$\\
+V27 & throughput & recorded per release & see \texttt{BENCHMARKS.md}\\
 \bottomrule
 \end{tabular}
 \end{frame}
@@ -781,7 +795,7 @@ Left: every CPU level reaches the ideal $2\times$ on the 2-core test node --- Nu
 
 
 % =====================================================================
-\section{v0.3--0.4: the complete roadmap}
+\section{v0.3: the complete roadmap}
 
 \begin{frame}{All planned modules are now implemented (R16--R23)}
 \footnotesize
@@ -901,6 +915,145 @@ Left: 2D bottom-gate OFET (grid refined at the edge contacts) output curves vs t
 \end{frame}
 
 % =====================================================================
+\section{v0.4: concurrent excitons, unbiased parallel KMC, MD import, benchmarks, tutorials}
+
+\begin{frame}{What v0.4 adds (R24--R28)}
+\footnotesize
+\begin{tabular}{@{}p{0.36\linewidth}p{0.24\linewidth}p{0.34\linewidth}@{}}
+\toprule
+item & module & validation\\
+\midrule
+R24 charges + excitons in \alert{one} device-KMC event loop; live TPQ/TTA; emission profile & \texttt{coupled\_kmc} & V24: exact bookkeeping; $\eta=k_r/(k_r+k_{nr})$ (+0.6$\sigma$); $\Js J$ unchanged (1\,\%)\\
+R25 $\tau\to0$ extrapolation for synchronous-sublattice KMC & \texttt{sublattice\_kmc} & V25: bias 5.2\,\% $\to$ 0.6\,\%\\
+R26 MD trajectories (\texttt{.gro}, extended XYZ), PBC-whole molecular centres & \texttt{morphology} & V26: exact centres; graph ME $=$ lattice ME ($3\times10^{-14}$)\\
+R27 benchmark harness: fixed criteria, \texttt{run\_all}, \texttt{BENCHMARKS.md}, throughput & \texttt{validation/}, \texttt{orchid bench} & 26/26 checks pass; V27 recorded\\
+R28 13 tutorial notebooks, 65-question quiz bank & \texttt{tutorials}, \texttt{orchid quiz} & notebooks executed; answer keys tested\\
+\bottomrule
+\end{tabular}\\[3mm]
+\small The whole suite V1--V27 was re-run on the v0.4.0 code: \alert{every quantitative check passes}.
+\end{frame}
+
+\begin{frame}{R24: one event loop for charges and excitons (\texttt{orchid.coupled\_kmc})}
+\small
+Common clock, two Fenwick trees (charges + injection sources; excitons):
+\[
+\Rt{R}=\Rt{R_c}+\Rt{R_x},\qquad \Tk{\Delta t}=-\frac{\ln u}{\Rt R},\qquad
+P(\text{exciton event})=\Rt{R_x}/\Rt R
+\]
+Recombination of $h^+$ and $e^-$ on site $j$ creates an exciton on $j$. Exciton rate row:
+\[
+\Rt{k_x}(i)=\underbrace{\Op{\sum_m}\Rt{k^{F}_{im}}}_{\text{Förster hops}}+\underbrace{k_r+k_{nr}}_{\text{decay}}
++\underbrace{\Op{\sum_{x\in\mathcal S}}\tfrac12k_{TT0}\Big(\frac{\Gx{R_{TT}}}{\Gx r}\Big)^6}_{\text{TTA}}
++\underbrace{\Op{\sum_{pol\in\mathcal S}}k_{q0}\Big(\frac{\Gx{R_q}}{\Gx r}\Big)^6+10k_{q0}\,\delta_{\Dn{occ}(i)\ne0}}_{\text{TPQ, \alert{live polarons}}}
+\]
+When a polaron moves, the TPQ rates of excitons within the stencil are refreshed. When an exciton moves, the TTA rates of its neighbours are refreshed.
+\[
+\text{EQE}=\eta_{S/T}\,\eta_{out}\,\frac{\GR{N_{photon}}}{\Js{J}A\Tk{t}/e},\qquad
+\GR{N_{formed}}+N_{alive}^{0}=\GR{N_{rad}}+\GR{N_{nr}}+\GR{N_{TPQ}}+\GR{N_{TTA}}+N_{ovf}+N_{alive}^{end}
+\]
+\end{frame}
+
+\begin{frame}{V24 --- concurrent vs sequential exciton coupling}
+\centering
+\includegraphics[width=0.8\linewidth]{v24_coupled.pdf}\\
+\footnotesize
+Exact checks: bookkeeping imbalance 0 in all runs; with quenching off, $\eta_{rad}=0.910$ vs $k_r/(k_r+k_{nr})=0.909$ ($+0.6\sigma$, $N=7{\times}10^3$); excitons do not perturb charge transport ($\Js J_{coupled}/\Js J_{charge}=0.99$--$1.01$).
+Physics: the v0.3 frozen-polaron pipeline \alert{overestimates TPQ}: concurrent EQE is 18--30\,\% higher. An exciton is born where its parent pair was consumed, so its local polaron density is lower than the mean profile. Right: emission is broader than recombination (Förster diffusion) and is suppressed at the charge-accumulating interfaces.
+\end{frame}
+
+\begin{frame}{R25 / V25 --- removing the window bias of parallel sublattice KMC}
+\begin{columns}[T]
+\column{0.5\textwidth}\small
+Blocks of one colour evolve independently for a window $\Tk\tau$. Moves across block boundaries are delayed, so the method is exact only as $\Tk\tau\to0$:
+\[
+\Mu{\mu}(\Tk\tau)=\Mu{\mu_0}+c_1\Tk\tau+c_2\Tk\tau^2+\dots
+\]
+\texttt{mobility\_sublattice\_extrapolated} runs windows $f\,\Tk{\tau_0}$ at equal simulated time and does a weighted least-squares fit. It reports $\Mu{\mu_0}$ with the larger of the statistical error and the order-1/order-2 difference.\\[2mm]
+$\hat\sigma=2.5$, $\Dn p=0.03$, vs serial Fenwick KMC:\\
+single window $10\tau_0$: $-5.2$\,\%\\
+extrapolated (10, 5, 2.5): $-0.6\pm2.9$\,\%
+\column{0.5\textwidth}
+\includegraphics[width=\linewidth]{v25_sublattice_extrap.pdf}
+\end{columns}
+\end{frame}
+
+\begin{frame}{R26 / V26 --- from MD trajectories to mobility}
+\begin{columns}[T]
+\column{0.42\textwidth}\small
+\begin{tikzpicture}[node distance=4mm,font=\scriptsize]
+\node[box=cX] (a) {\texttt{.gro} / extended XYZ\\frames};
+\node[box=cX,below=of a] (b) {minimum-image unwrap\\per molecule};
+\node[box=cE,below=of b] (c) {mass-weighted centres\\$+$ site energies};
+\node[box=cW,below=of c] (d) {\texttt{MolecularGraph}\\rates $\Rt{W_{ij}}$};
+\node[box=cMu,below=of d] (e) {ME per frame $\to\langle\Mu\mu\rangle$};
+\foreach \u/\v in {a/b,b/c,c/d,d/e}\draw[-{Stealth}] (\u) -- (\v);
+\end{tikzpicture}
+\column{0.56\textwidth}
+\includegraphics[width=\linewidth]{v26_md_import.pdf}\\
+\footnotesize 397 of 1728 molecules straddle the box edge. Their centres are recovered to $10^{-24}$\,m (GRO precision $4\times10^{-13}$\,m), and the imported lattice reproduces the lattice ME to $3\times10^{-14}$. Right: frame-averaged mobility falls with thermal displacement (positional disorder).
+\end{columns}
+\end{frame}
+
+\begin{frame}{R27 --- benchmark harness and V27 throughput}
+\begin{columns}[T]
+\column{0.5\textwidth}\small
+\begin{itemize}
+\item \texttt{validation/criteria.py}: one pass/fail function per benchmark. The tolerances come from the references and are \alert{fixed in advance}.
+\item \texttt{python validation/run\_all.py --run [V..]} re-runs the scripts, times them, and writes \texttt{BENCHMARKS.md}.
+\item \texttt{orchid bench} re-grades the stored results; CI grades them on every push.
+\item Full suite on 2 cores: 52 min. \alert{26/26 checks pass} on v0.4.0.
+\end{itemize}
+\column{0.48\textwidth}\footnotesize
+\begin{tabular}{@{}lr@{}}
+\toprule
+engine (2 cores) & throughput\\
+\midrule
+independent KMC & $3.5\times10^{7}$ hops/s\\
+interacting KMC (Fenwick) & $9.8\times10^{5}$ ev/s\\
+3D device KMC & $1.6\times10^{4}$ ev/s\\
+concurrent device KMC & $1.7\times10^{4}$ ev/s\\
+ME, $64\,000$ sites & 1.6 s\\
+DD $J$--$V$, 21 points & 0.7 s\\
+\bottomrule
+\end{tabular}
+\end{columns}
+\end{frame}
+
+\begin{frame}{R28 --- tutorials and quizzes}
+\begin{columns}[T]
+\column{0.55\textwidth}\scriptsize
+\begin{tabular}{@{}ll@{}}
+\toprule
+\# & tutorial (\texttt{docs/tutorials})\\
+\midrule
+01 & hopping rates and disorder\\
+02 & kinetic Monte Carlo, TOF, relaxation\\
+03 & master equation and EGDM\\
+04 & drift--diffusion: SCLC, OPV, OLED, multilayer\\
+05 & CELIV, TPV, admittance, IMPS\\
+06 & 2D DD and OFETs\\
+07 & optics: TMM, AM1.5G, dipole outcoupling\\
+08 & excitons: diffusion, TTA, quenching\\
+09 & 3D device KMC with concurrent excitons\\
+10 & DIPRO, morphology, MD import\\
+11 & search, GP surrogates, Bayesian inversion\\
+12 & MPI, threads, GPU, sublattice KMC\\
+13 & benchmarking and validation\\
+\bottomrule
+\end{tabular}
+\column{0.43\textwidth}\small
+Each notebook: goals $\to$ theory (equations) $\to$ runnable examples with stored output $\to$ exercises with hidden solutions $\to$ \alert{5-question quiz}.\\[2mm]
+\scriptsize
+\texttt{orchid tutorials}\\
+\texttt{orchid quiz 09}\hfill(terminal)\\[1mm]
+\texttt{from orchid.tutorials import quiz}\\
+\texttt{quiz("09")}\\
+\texttt{quiz("09", answers="....")}\\[2mm]
+\small 65 questions, each with an explanation linked to the equations and benchmarks.
+\end{columns}
+\end{frame}
+
+% =====================================================================
 \section{Software engineering}
 
 \begin{frame}[fragile]{Repository layout \& quality}
@@ -917,18 +1070,20 @@ orchid/
            roadmap  cli
            exciton_device smallsignal dd2d
            materials morphology ml
-           sublattice_kmc  data/(nk, AM1.5G)
-  tests/test_orchid.py        (49 tests)
-  validation/bench_*.py       (V1-V23)
-  validation/_sesame_runner.py
+           sublattice_kmc  coupled_kmc
+           tutorials  data/(nk, AM1.5G, quizzes)
+  tests/test_orchid.py        (57 tests)
+  validation/bench_*.py       (V1-V27)
+  validation/criteria.py run_all.py
   validation/figures, results/*.json
-  examples/  docs/slides/
+  docs/tutorials/*.ipynb (13)  docs/slides/
+  examples/  tools/  BENCHMARKS.md
   ROADMAP.md  README.md  LICENSE
   .github/workflows/tests.yml
 \end{verbatim}
 \column{0.52\textwidth}\small
 \begin{itemize}
-\item 49 tests: physics limits, solver cross-checks, detailed balance, device-KMC equilibrium and symmetry, CELIV, transient $\to$ steady state, Fenwick tree, parallel backends, CUDA simulator, roadmap integrity.
+\item 57 tests: physics limits, concurrent-KMC bookkeeping, MD import, quiz bank, solver cross-checks, detailed balance, device-KMC equilibrium and symmetry, CELIV, transient $\to$ steady state, Fenwick tree, parallel backends, CUDA simulator, roadmap integrity.
 \item CI on Python 3.10--3.12.
 \item Optional extras: \texttt{[mpi]}, \texttt{[amg]}, \texttt{[gpu]}, \texttt{[validate]}, \texttt{[all]}.
 \item Every benchmark writes figures and JSON; external codes run in isolated subprocesses.
@@ -937,7 +1092,7 @@ orchid/
 \end{frame}
 
 \begin{frame}[fragile]{Usage}
-\scriptsize
+\tiny
 \begin{verbatim}
 from orchid.device_kmc import DeviceKMC, Layer
 from orchid.parallel import parallel_map
@@ -951,15 +1106,14 @@ def point(V):
     return dev.run(V, n_eq=5e5, n_meas=2e6)
 
 jv = parallel_map(point, [3, 4, 5, 6, 7])          # MPI ranks under mpiexec
-
-from orchid.transient import celiv
-res = celiv(device, A=1e7, t_end=5e-6, G_pulse=1e30, t_pulse=1e-10)
 \end{verbatim}
 \small Command line:
-\scriptsize
+\tiny
 \begin{verbatim}
 orchid roadmap                 # done / planned items
 orchid parallel                # MPI ranks, threads, GPU
+orchid bench [--run V24]       # grade / re-run benchmarks
+orchid quiz 09                 # tutorial quiz
 mpiexec -n 64 python study.py  # any parallel_map spreads across 64 ranks
 \end{verbatim}
 \end{frame}
@@ -968,40 +1122,41 @@ mpiexec -n 64 python study.py  # any parallel_map spreads across 64 ranks
 
 \begin{frame}{Roadmap in the code: \texttt{orchid/roadmap.py} + \texttt{ROADMAP.md}}
 \centering
-\begin{tikzpicture}[x=1cm,y=0.5cm,font=\scriptsize]
-\foreach \v/\x/\lab in {0/0/v0.1,1/3.5/v0.2,2/7/v0.3,3/10.5/v0.4}{\node[font=\small\bfseries] at (\x+1.6,1) {\lab};}
+\begin{tikzpicture}[x=1cm,y=0.45cm,font=\scriptsize]
+\foreach \v/\x/\lab in {0/0/v0.1,1/3.5/v0.2,2/7/v0.3,3/10.5/v0.4}{\node[font=\small\bfseries] at (\x+1.6,1.6) {\lab};}
 \rmbox{0}{0}{cW}{R01 rates}\rmbox{0}{1}{cE}{R02 disorder}\rmbox{0}{2}{cMu}{R03 bulk KMC}\rmbox{0}{3}{cMu}{R04 master eq.}
 \rmbox{0}{4}{cF}{R05 1D DD}\rmbox{0}{5}{cG}{R06 optics}\rmbox{0}{6}{cG}{R07 excitons}\rmbox{0}{7}{cOp}{R08 search}
 \rmbox{3.5}{0}{cJ}{R09 MPI/threads}\rmbox{3.5}{1}{cJ}{R10 GPU kernels}\rmbox{3.5}{2}{cMu}{R11 $\log N$ KMC}\rmbox{3.5}{3}{cF}{R12 Ewald/images}
 \rmbox{3.5}{4}{cMu}{R13 3D device KMC}\rmbox{3.5}{5}{cF}{R14 transient DD}\rmbox{3.5}{6}{cMu}{R15 AMG, size extrap.}
 \rmbox{7}{0}{cG}{R16 excitons in dev.\ KMC}\rmbox{7}{1}{cF}{R17 multilayer DD}\rmbox{7}{2}{cF}{R18 impedance/IMPS}
-\rmbox{7}{3}{cF}{R19 2D/3D DD, OFET}\rmbox{7}{4}{cG}{R20 dipole outcoupling}
-\rmbox{10.5}{0}{cE}{R21 MD+DFT inputs}\rmbox{10.5}{1}{cN}{R22 ML surrogates}\rmbox{10.5}{2}{cJ}{R23 GPU device KMC}
-\node[anchor=west,font=\small] at (0,-8.6) {all 23 items done, each with a module, benchmark and tests};
+\rmbox{7}{3}{cF}{R19 2D DD, OFET}\rmbox{7}{4}{cG}{R20 dipole outcoupling}\rmbox{7}{5}{cE}{R21 DIPRO, morphology}
+\rmbox{7}{6}{cN}{R22 ML surrogates}\rmbox{7}{7}{cJ}{R23 sublattice KMC}
+\rmbox{10.5}{0}{cG}{R24 concurrent excitons}\rmbox{10.5}{1}{cJ}{R25 $\tau\to0$ extrapolation}\rmbox{10.5}{2}{cE}{R26 MD trajectories}
+\rmbox{10.5}{3}{cOp}{R27 benchmark harness}\rmbox{10.5}{4}{cX}{R28 tutorials + quizzes}
+\node[anchor=west,font=\small] at (0,-8.6) {all 28 items done (v0.1--v0.4), each with a module, a benchmark and tests};
 \end{tikzpicture}
 \end{frame}
 
-\begin{frame}{Honest limitations of v0.3}
+\begin{frame}{Honest limitations of v0.4}
 \small
 \begin{itemize}
-\item \textbf{Scale not demonstrated}: parallel speed-up measured on 2 cores only; the GPU kernels are verified in the CUDA simulator, not on hardware. Running the benchmarks on Shaheen is the next step.
-\item \textbf{Couplings, not concurrency}: excitons are coupled to the device KMC sequentially (generation profile and frozen polarons), not in one simultaneous event loop.
+\item \textbf{Scale not yet demonstrated on hardware}: parallel speed-up was measured on 2 cores only, and the GPU kernels are verified in the CUDA simulator. The next step is running \texttt{run\_all.py} on Shaheen and GPUs.
+\item \textbf{Concurrent loop (R24) is OLED-oriented}: excitons do not yet dissociate back into charge pairs (OPV), and singlets and triplets are not tracked separately (single species $\times\,\eta_{S/T}$).
 \item 2D DD: unipolar OFETs are robust. Bipolar 2D morphologies with vanishing minority densities may need continuation in light intensity.
-\item Sublattice KMC carries a window-size error of 6--10\,\% at $\tau=10/\Gamma_{max}$; smaller $\tau$ costs more cycles.
-\item DIPRO is shown with HF/minimal basis; production couplings need DFT and larger bases (PySCF supports both).
-\item The 3D device KMC is not compared against commercial device-KMC codes, which are not publicly available. The heterojunction DD is compared against NIST Sesame only in its Boltzmann/SRH regime.
+\item Sublattice extrapolation (R25) costs 3 runs. Its quoted error is conservative because it includes the order-1/order-2 spread.
+\item DIPRO is demonstrated with HF/minimal basis. MD import (R26) gives positions; production couplings per frame need DFT.
+\item The 3D device KMC is not compared with commercial device-KMC codes, which are not publicly available. The heterojunction DD is compared against NIST Sesame only in its Boltzmann/SRH regime.
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Publishing to GitHub}
+\begin{frame}{Release v0.4.0 on GitHub}
 \small
 \begin{enumerate}
-\item Repository is committed locally on \texttt{main} (v0.1.0, v0.2.0, v0.3.0 commits).
-\item Create empty repo \texttt{Gokaran-Shukla/orchid} (public, no README).
-\item \texttt{git remote add origin git@github.com:Gokaran-Shukla/orchid.git}
-\item \texttt{git push -u origin main} $\Rightarrow$ CI runs the 49 tests.
-\item Tag \texttt{v0.3.0}; add topics (organic-electronics, oled, kinetic-monte-carlo, drift-diffusion, mpi, gpu); Zenodo DOI.
-\item Optional: run \texttt{validation/bench\_*.py} on KAUST Shaheen with \texttt{mpiexec} to record real multi-node scaling for the paper.
+\item \texttt{github.com/Gokaran-Shukla/orchid}, branch \texttt{main}: releases v0.1.0, v0.2.0, v0.3.0 and \alert{v0.4.0}.
+\item CI: 57 tests on Python 3.10--3.12; the stored benchmarks are graded on every push; tutorials 01 and 13 are executed.
+\item \texttt{BENCHMARKS.md}: the full V1--V27 report for this release (values, pass/fail, runtimes, throughput).
+\item \texttt{docs/tutorials/}: 13 executed notebooks with quizzes; \texttt{orchid quiz}.
+\item Zenodo archives every GitHub release and mints a DOI for each version.
 \end{enumerate}
 \end{frame}
 

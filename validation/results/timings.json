@@ -1,0 +1,97 @@
+{
+ "bench_temperature": {
+  "seconds": 140.0,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_density_field": {
+  "seconds": 270.6,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_misc": {
+  "seconds": 181.4,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_devices": {
+  "seconds": 17.9,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_tof": {
+  "seconds": 3.5,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_device_kmc": {
+  "seconds": 831.7,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_transient": {
+  "seconds": 73.8,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_published_software": {
+  "seconds": 11.6,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_parallel": {
+  "seconds": 49.0,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_v18_excitons": {
+  "seconds": 107.7,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_v19_dd_extensions": {
+  "seconds": 11.0,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_v20_outcoupling": {
+  "seconds": 4.3,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_v21_morphology": {
+  "seconds": 7.4,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_v22_ml": {
+  "seconds": 22.0,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_v23_ofet_sublattice": {
+  "seconds": 158.5,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_v24_coupled": {
+  "seconds": 456.5,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_v25_sublattice_extrap": {
+  "seconds": 631.7,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_v26_md_import": {
+  "seconds": 9.3,
+  "returncode": 0,
+  "date": "2026-11-14"
+ },
+ "bench_v27_performance": {
+  "seconds": 62.0,
+  "returncode": 0,
+  "date": "2026-11-14"
+ }
+}

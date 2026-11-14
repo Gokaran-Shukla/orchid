@@ -32,7 +32,7 @@ diodes):
     ml               Gaussian-process surrogates, Bayesian inversion
     sublattice_kmc   parallel-in-space interacting KMC (CPU / CUDA)
 """
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = ["rates", "lattice", "kmc", "master_equation", "models",
            "drift_diffusion", "exciton", "optics", "devices", "search", "device_kmc",
            "electrostatics", "transient", "parallel", "gpu", "roadmap", "exciton_device",

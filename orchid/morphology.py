@@ -192,3 +192,164 @@ class MolecularGraph:
         else:
             raise ValueError(kind)
         return np.where(self.mask, W, 0.0)
+
+
+# ------------------------------------------------- MD trajectory import (R26)
+_MASS = {"H": 1.008, "C": 12.011, "N": 14.007, "O": 15.999, "F": 18.998, "S": 32.06,
+         "P": 30.974, "Cl": 35.45, "Br": 79.904, "I": 126.90, "Si": 28.085, "B": 10.81,
+         "Se": 78.97, "Ir": 192.22, "Pt": 195.08, "Zn": 65.38, "Cu": 63.546, "Al": 26.982}
+
+
+def element_mass(name):
+    """Atomic mass from an atom or element name ('C', 'C12', 'CA', 'Cl1', 'Ir').
+
+    A two-letter element is recognised only in mixed case ('Cl', 'Ir'),
+    following the PDB/GROMACS convention that upper-case 'CA' is an alpha
+    carbon. Otherwise the first letter decides. Pass explicit ``masses`` to
+    :func:`molecule_centres` for anything unusual.
+    """
+    letters = "".join(ch for ch in name if ch.isalpha())
+    if len(letters) >= 2 and letters[0].isupper() and letters[1].islower() \
+            and letters[:2] in _MASS:
+        return _MASS[letters[:2]]
+    return _MASS.get(letters[:1].upper(), 12.0)
+
+
+def read_gro(path):
+    """Read a (multi-frame) GROMACS .gro file.
+
+    Returns a list of frames. Each frame is a dict with keys
+    ``resid`` (int array), ``resname``, ``atom`` (lists),
+    ``xyz`` (natoms x 3, metres), ``box`` (3, metres; orthorhombic
+    diagonal) and ``title``.
+    """
+    lines = open(path).read().splitlines()
+    frames, i = [], 0
+    while i < len(lines) and lines[i].strip():
+        title = lines[i]
+        n = int(lines[i + 1])
+        resid, resname, atom, xyz = [], [], [], []
+        for l in lines[i + 2:i + 2 + n]:
+            resid.append(int(l[0:5]))
+            resname.append(l[5:10].strip())
+            atom.append(l[10:15].strip())
+            xyz.append([float(l[20:28]), float(l[28:36]), float(l[36:44])])
+        box = np.array([float(v) for v in lines[i + 2 + n].split()[:3]])
+        frames.append(dict(title=title, resid=np.array(resid), resname=resname, atom=atom,
+                           xyz=np.array(xyz) * 1e-9, box=box * 1e-9))
+        i += n + 3
+    return frames
+
+
+def write_gro(path, frames):
+    """Write frames (same dict layout as :func:`read_gro`) to a .gro file."""
+    with open(path, "w") as f:
+        for fr in frames:
+            f.write((fr.get("title") or "ORCHID") + "\n")
+            f.write(f"{len(fr['xyz']):5d}\n")
+            for k, (r, rn, an, p) in enumerate(zip(fr["resid"], fr["resname"], fr["atom"],
+                                                   fr["xyz"] * 1e9)):
+                f.write(f"{r % 100000:5d}{rn:<5s}{an:>5s}{(k + 1) % 100000:5d}"
+                        f"{p[0]:8.3f}{p[1]:8.3f}{p[2]:8.3f}\n")
+            b = fr["box"] * 1e9
+            f.write(f"{b[0]:10.5f}{b[1]:10.5f}{b[2]:10.5f}\n")
+
+
+def read_xyz_trajectory(path, box=None):
+    """Multi-frame (extended) XYZ. ``box`` [m] is taken from an extended-XYZ
+    ``Lattice="ax 0 0 0 by 0 0 0 cz"`` comment if present (Angstrom), else
+    from the argument. Returns frames as in :func:`read_gro`, with
+    ``resid`` set to None (give molecule sizes to :func:`molecule_centres`)."""
+    lines = open(path).read().splitlines()
+    frames, i = [], 0
+    while i < len(lines) and lines[i].strip():
+        n = int(lines[i])
+        com = lines[i + 1]
+        b = None if box is None else np.asarray(box, float)
+        if "Lattice=" in com:
+            v = [float(x) for x in com.split("Lattice=")[1].split('"')[1].split()]
+            b = np.array([v[0], v[4], v[8]]) * 1e-10
+        at, xyz = [], []
+        for l in lines[i + 2:i + 2 + n]:
+            p = l.split()
+            at.append(p[0])
+            xyz.append([float(v) for v in p[1:4]])
+        frames.append(dict(title=com, resid=None, resname=None, atom=at,
+                           xyz=np.array(xyz) * 1e-10, box=b))
+        i += n + 2
+    return frames
+
+
+def molecule_centres(frame, atoms_per_molecule=None, mass_weighted=True, masses=None):
+    """Centres of mass of molecules in one frame, made whole across PBC.
+
+    Molecules are defined by ``frame['resid']`` (GRO). If that is None,
+    ``atoms_per_molecule`` consecutive atoms form one molecule. Each atom is
+    unwrapped by the minimum image relative to the first atom of its
+    molecule, so molecules split by the periodic boundary are rebuilt
+    before averaging. The centres are wrapped back into [0, box).
+    Returns (centres [m] (n_mol x 3), molecule index per atom).
+    """
+    xyz = np.asarray(frame["xyz"], float)
+    box = frame["box"]
+    if frame.get("resid") is not None:
+        rid = np.asarray(frame["resid"])
+        change = np.r_[True, rid[1:] != rid[:-1]]
+        mol = np.cumsum(change) - 1
+    else:
+        if atoms_per_molecule is None:
+            raise ValueError("atoms_per_molecule needed when resid is absent")
+        mol = np.arange(len(xyz)) // atoms_per_molecule
+    nm = mol.max() + 1
+    first = np.searchsorted(mol, np.arange(nm))
+    ref = xyz[first][mol]
+    d = xyz - ref
+    if box is not None:
+        d -= box * np.round(d / box)
+    if masses is not None:
+        w = np.asarray(masses, float)
+    elif mass_weighted:
+        w = np.array([element_mass(a) for a in frame["atom"]])
+    else:
+        w = np.ones(len(xyz))
+    W = np.bincount(mol, w, nm)
+    com = np.stack([np.bincount(mol, w * d[:, k], nm) for k in range(3)], 1) / W[:, None]
+    com += xyz[first]
+    if box is not None:
+        com %= box
+    return com, mol
+
+
+def trajectory_mobility(frames, T, n_frac=1e-6, r_cut=None, energies="dipolar",
+                        atoms_per_molecule=None, alpha=10.0, dipole_debye=3.0, eps_r=3.0,
+                        sigma=None, seed=0, **me_kw):
+    """Charge mobility averaged over MD snapshots (static-disorder limit).
+
+    For each frame: molecular centres -> :class:`MolecularGraph` ->
+    linear-response master equation. Site energies are ``"dipolar"``
+    (:func:`dipolar_site_energies`; correlated, they change with the
+    morphology), ``"gaussian"`` (uncorrelated, width ``sigma``) or an
+    array. Returns dict(mu_frames, mu_mean, mu_sem, n_molecules, a, sigma_frames).
+    """
+    from .master_equation import me_linear_response
+    mus, sig = [], []
+    rng = np.random.default_rng(seed)
+    for k, fr in enumerate(frames):
+        c, _ = molecule_centres(fr, atoms_per_molecule)
+        box = fr["box"]
+        a = (np.prod(box) / len(c)) ** (1 / 3)
+        rc = 1.7 * a if r_cut is None else r_cut
+        if isinstance(energies, str) and energies == "dipolar":
+            E = dipolar_site_energies(c, box, dipole_debye=dipole_debye, eps_r=eps_r,
+                                      seed=seed + k)
+        elif isinstance(energies, str) and energies == "gaussian":
+            E = rng.normal(0.0, sigma, len(c))
+        else:
+            E = np.asarray(energies, float)
+        G = MolecularGraph(c, box, r_cut=rc, energies=E)
+        mus.append(me_linear_response(G, T, n_frac, alpha=alpha, **me_kw)[0])
+        sig.append(float(np.std(E)))
+    mus = np.asarray(mus)
+    sem = mus.std(ddof=1) / np.sqrt(len(mus)) if len(mus) > 1 else 0.0
+    return dict(mu_frames=mus, mu_mean=mus.mean(), mu_sem=sem, n_molecules=len(c),
+                a=a, sigma_frames=np.asarray(sig))

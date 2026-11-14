@@ -35,6 +35,10 @@ analytical limit or a published result (see `validation/`).
 | `morphology` | amorphous packings, DIPRO transfer integrals (PySCF), dipolar site energies, hopping graphs | VOTCA-style |
 | `ml` | Gaussian-process surrogates, exhaustive-grid Bayesian inversion | NumPy |
 | `sublattice_kmc` | parallel-in-space interacting KMC (Shim–Amar), CPU threads and CUDA | synchronous sublattice |
+| `coupled_kmc` | **v0.4:** charges and excitons in **one** device-KMC event loop: live exciton–polaron quenching, TTA, emission profile, EQE | two Fenwick trees, common clock |
+| `sublattice_kmc.mobility_sublattice_extrapolated` | **v0.4:** removes the time-window bias of parallel sublattice KMC (τ → 0) | polynomial extrapolation in τ |
+| `morphology` (MD import) | **v0.4:** GROMACS `.gro` / extended-XYZ trajectories, PBC-whole molecular centres, frame-averaged mobility | minimum-image unwrapping |
+| `tutorials` | **v0.4:** 13 tutorial notebooks, 65-question quiz bank (`orchid quiz`) | Jupyter |
 | `roadmap` | machine-readable roadmap (`orchid roadmap`), see ROADMAP.md | — |
 
 ## Install
@@ -42,7 +46,7 @@ analytical limit or a published result (see `validation/`).
 ```bash
 pip install -e ".[dev]"     # numpy, scipy, numba (+ pytest, matplotlib, pyamg, tmm)
 pip install -e ".[mpi,gpu,qc]" # optional: mpi4py, cupy, pyscf
-pytest -q                   # 49 tests, about 3 min
+pytest -q                   # 57 tests, about 4 min
 ```
 
 ## Quick start
@@ -67,25 +71,41 @@ orchid egdm --T 300 --p 1e23 --F 1e7
 
 More in `examples/` (ME vs KMC, solar cell with optics, OLED roll-off, GDM fit).
 
-## Validation (`validation/`, run `python bench_*.py`)
+## Tutorials and quizzes (v0.4)
 
-| # | Benchmark | Reference | Result |
-|---|---|---|---|
-| V1 | μ(T), p→0 | Pasveer *et al.*, PRL 94, 206601 (2005) | ME = KMC within 3–10 %; within 1.2× of EGDM for σ̂ ≤ 3, finite-size deviation above |
-| V2 | μ(p) | EGDM g₁ | ME and KMC with exclusion agree within 1–7 %; EGDM matched for σ̂ = 3–4 |
-| V3 | μ(F) | EGDM g₂ | KMC matches σ̂ = 3; within about 30 % for σ̂ = 2, 4 |
-| V4 | ⟨E⟩(t→∞) | −σ²/k_BT (Bässler 1993) | −1.97σ vs −2σ at σ̂=2; finite-sample limit at σ̂=3 |
-| V5 | SCLC | Mott–Gurney | J/J_MG → 1.06 at 40 V (diffusion-corrected approach) |
-| V6 | V_oc(G) | Koster *et al.*, APL 86, 123509 (2005) | ≤ 1.3 mV deviation; slope 1.004 k_BT/q |
-| V7 | exciton D, σ = 0 | D = Σk r²/6 | within statistical error |
-| V8 | optics | Airy formula, energy conservation | 3e-16 / 7e-6 |
-| V9 | inverse problems | known synthetic truth | GDM σ, μ∞, Σ within 1 %; DD barrier and mobility recovered |
-| V10–V12 | TOF, Marcus vs MA, OLED / OPV demos | qualitative literature trends | — |
-| V13 | 3D device KMC | 1D EGDM DD (van der Holst 2009); zero-bias equilibrium | ≤ 1.6× up to 2 V; J(0)=0; e/h mirror symmetry |
-| V14 | Ewald / images | NaCl Madelung constant; single-plane image limit | 6e-10; 1e-3 |
-| V15 | **code-to-code** | **NIST Sesame** (DD) and **tmm** (optics) | ΔJ/Jsc ≤ 3e-6, ΔVoc 4 nV; 1e-15 |
-| V16 | parallel efficiency | ideal | 2.0× on 2 cores for threads, processes and MPI; MPI bit-identical |
-| V17 | CELIV, TPV | Juška 2000; 1/(2γn) | μ_CELIV/μ → 1.05; 1.14× (300 nm) |
+Thirteen notebooks in [`docs/tutorials/`](docs/tutorials/README.md) cover every section of the code.
+Each has theory with equations, runnable examples, exercises with hidden solutions and a five-question quiz:
+
+```bash
+orchid tutorials            # list them
+orchid quiz 09              # interactive quiz in the terminal
+```
+
+```python
+from orchid.tutorials import quiz
+quiz("09")                  # show the questions
+quiz("09", answers="....")  # grade, with an explanation for every answer
+```
+
+## Validation and benchmarks
+
+All 27 benchmarks (V1–V27) are re-run for every release. They are graded against tolerances fixed in
+advance in `validation/criteria.py`, and the full report with values and runtimes is in
+[BENCHMARKS.md](BENCHMARKS.md).
+
+```bash
+python validation/run_all.py --run        # re-run everything (about an hour on 2 cores)
+python validation/run_all.py --run V24    # one benchmark
+orchid bench                              # re-evaluate stored results
+```
+
+| Group | Benchmarks | References |
+|---|---|---|
+| Transport physics | V1–V4, V10, V11 | Pasveer 2005 (EGDM), Bässler 1993, Scher–Montroll, detailed balance |
+| Devices | V5, V6, V12, V13, V17–V19, V23 | Mott–Gurney, Koster 2005, van der Holst 2009, Juška 2000, Martens (¾C_geo), gradual channel |
+| Code-to-code | V15, V19 | **NIST Sesame** (ΔJ/Jsc ≤ 3e-6), **tmm** (1e-15) |
+| Exact limits | V7, V8, V14, V20, V21, V24, V26 | Σkr²/6, Airy, Madelung, CPS mirror, DIPRO splitting, η = k_r/(k_r+k_nr), exact PBC centres |
+| Numerics / parallel | V9, V16, V22, V25, V27 | parameter recovery, MPI = serial, credible-interval coverage, τ→0 extrapolation, throughput |
 
 ## Parallel runs
 

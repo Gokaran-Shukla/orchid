@@ -13,3 +13,17 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
       - run: pytest -q
+  benchmarks-and-tutorials:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]" nbformat nbclient ipykernel
+      - name: Grade stored benchmark results against fixed tolerances
+        run: python validation/run_all.py
+      - name: Execute quick tutorials
+        run: |
+          python -m ipykernel install --user --name python3
+          python tools/build_tutorials.py --execute 01 13

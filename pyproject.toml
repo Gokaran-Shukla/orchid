@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orchid-oe"
-version = "0.3.0"
+version = "0.4.0"
 description = "ORCHID: multiscale charge & exciton transport simulator for organic semiconductors, OLEDs and organic solar cells (KMC, master equation, EGDM, drift-diffusion, transfer-matrix optics)"
 readme = "README.md"
 license = {text = "MIT"}
@@ -36,7 +36,7 @@ Homepage = "https://github.com/Gokaran-Shukla/orchid"
 include = ["orchid*"]
 
 [tool.setuptools.package-data]
-orchid = ["data/*.csv", "data/nk/*.yml"]
+orchid = ["data/*.csv", "data/*.json", "data/nk/*.yml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

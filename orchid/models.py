@@ -51,10 +51,17 @@ def egdm_mu0T(T, sigma, mu0, c1=EGDM_C1, c2=EGDM_C2):
 
 
 def egdm_g1(p_site, T, sigma):
-    """Density enhancement; p_site = p a^3 (fraction of sites), valid <=0.1."""
+    """Density enhancement; p_site = p a^3 (fraction of sites), valid <=0.1.
+
+    Pasveer's parametrisation needs delta > 0, i.e. sigma/kT > ~1.82. Below
+    that the density dependence is negligible and 1 is returned (the formula
+    itself would diverge as p -> 0).
+    """
     s = sigma / (kB_eV * T)
-    delta = 2 * (np.log(s ** 2 - s) - np.log(np.log(4.0))) / s ** 2
     pc = np.minimum(np.asarray(p_site, float), 0.1)
+    if s ** 2 - s <= np.log(4.0):
+        return np.ones_like(pc)
+    delta = 2 * (np.log(s ** 2 - s) - np.log(np.log(4.0))) / s ** 2
     return np.exp(0.5 * (s ** 2 - s) * (2 * pc) ** delta)
 
 

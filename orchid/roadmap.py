@@ -69,16 +69,32 @@ ROADMAP = [
     dict(id="R20", version="0.3", status="done", module="orchid.optics",
          title="Dipole-emitter outcoupling (CPS / plane-wave expansion), ASTM G173 spectrum, refractiveindex.info n,k database",
          validation="CPS perfect-mirror formulas; BK7 n_d = 1.5168; AM1.5G = 1000 W/m^2"),
-    # ---------------------------------------------------------------- v0.4
-    dict(id="R21", version="0.4", status="done", module="orchid.morphology",
+    # ------------------------------------------- v0.3 (continued, shipped in 0.3.0)
+    dict(id="R21", version="0.3", status="done", module="orchid.morphology",
          title="Molecular morphologies + DFT transfer integrals (DIPRO/PySCF) + dipolar site energies on hopping graphs",
          validation="graph = lattice ME exactly; DIPRO J_eff = half dimer splitting"),
-    dict(id="R22", version="0.4", status="done", module="orchid.ml",
+    dict(id="R22", version="0.3", status="done", module="orchid.ml",
          title="Gaussian-process surrogates of mu(T,p) trained on ORCHID data; exhaustive-grid Bayesian inversion",
          validation="held-out RMSE; truth inside 95 % credible intervals"),
-    dict(id="R23", version="0.4", status="done", module="orchid.sublattice_kmc",
+    dict(id="R23", version="0.3", status="done", module="orchid.sublattice_kmc",
          title="Parallel-in-space interacting KMC (synchronous sublattice), CPU threads + CUDA kernel",
          validation="agrees with serial Fenwick KMC; CUDA simulator test"),
+    # ---------------------------------------------------------------- v0.4
+    dict(id="R24", version="0.4", status="done", module="orchid.coupled_kmc",
+         title="Concurrent charge + exciton device KMC: one event loop, live TPQ/TTA, emission profile, EQE",
+         validation="exact bookkeeping; eta = kr/(kr+knr) within 3 sigma; J unchanged; vs v0.3 pipeline"),
+    dict(id="R25", version="0.4", status="done", module="orchid.sublattice_kmc",
+         title="Time-window extrapolation (tau -> 0) for synchronous-sublattice KMC",
+         validation="extrapolated mobility vs serial Fenwick KMC"),
+    dict(id="R26", version="0.4", status="done", module="orchid.morphology",
+         title="MD trajectory import (GROMACS .gro, extended XYZ), PBC-whole molecular centres, frame-averaged mobility",
+         validation="exact centres for PBC-split molecules; graph ME = lattice ME (3e-14)"),
+    dict(id="R27", version="0.4", status="done", module="orchid.cli",
+         title="Benchmark harness: criteria for V1-V27, run_all, BENCHMARKS.md, throughput record, orchid bench",
+         validation="27 benchmarks evaluated against fixed tolerances"),
+    dict(id="R28", version="0.4", status="done", module="orchid.tutorials",
+         title="13 executed tutorial notebooks with exercises and 65-question quiz bank (orchid quiz)",
+         validation="notebooks execute in CI-equivalent run; quiz answer keys tested"),
 ]
 
 
@@ -90,6 +106,29 @@ def summary(version=None):
         mark = {"done": "[x]", "in progress": "[~]", "planned": "[ ]"}[r["status"]]
         lines.append(f"{mark} {r['id']} v{r['version']}  {r['title']:<{w}}  ({r['module']})")
     return "\n".join(lines)
+
+
+VERSION_TITLES = {
+    "0.1": "multiscale core",
+    "0.2": "3D device KMC, transients, massive parallelism",
+    "0.3": "device-physics completeness, first principles, ML, parallel-in-space KMC",
+    "0.4": "concurrent excitons, unbiased parallel KMC, MD import, benchmarks, tutorials",
+}
+
+
+def markdown(extra=""):
+    """Render the roadmap tables (used to regenerate ROADMAP.md)."""
+    done, n = progress()
+    out = ["# ORCHID roadmap", "",
+           "This file is generated from `orchid/roadmap.py`; `orchid roadmap` prints it. Every item has "
+           "an importable module, a validation benchmark (`validation/`) and tests.", ""]
+    for v, title in VERSION_TITLES.items():
+        out += [f"## v{v}: {title}", "", "| ID | Status | Item | Module | Validation |",
+                "|---|---|---|---|---|"]
+        out += [f"| {r['id']} | {r['status']} | {r['title']} | `{r['module']}` | {r['validation']} |"
+                for r in ROADMAP if r["version"] == v]
+        out.append("")
+    return "\n".join(out) + extra
 
 
 def progress():

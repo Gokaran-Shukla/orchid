@@ -465,3 +465,129 @@ def test_ofet_linear_mobility():
         I.append(-d.contact_current(z, {"gate": VG, "drain": -0.2}, "drain"))
     mu = (I[1] - I[0]) / 4.0 * d.L_ch / (d.C_i * 0.2)
     assert abs(mu / 1e-6 - 1) < 0.1
+
+
+# ================================================================== v0.4
+def test_coupled_kmc_bookkeeping_and_yield():
+    from orchid.coupled_kmc import CoupledDeviceKMC
+    from orchid.device_kmc import Layer
+    stack = [Layer(4, HOMO=-5.2, LUMO=-2.0), Layer(6, HOMO=-5.4, LUMO=-2.7),
+             Layer(4, HOMO=-6.0, LUMO=-2.8)]
+    d = CoupledDeviceKMC(stack, Lx=8, Ly=8, W_anode=5.1, W_cathode=2.9, coulomb="full", seed=1,
+                         k_q0=0.0, k_TT0=0.0, tau_r=1e-6, tau_nr=1e-5)
+    r = d.run(7.0, n_eq=20000, n_meas=150000, mf_update=300, seed=3)
+    x = r["excitons"]
+    assert x["formed"] > 50
+    assert x["formed"] + x["alive_start"] == (x["radiative"] + x["nonradiative"] + x["TPQ"]
+                                              + x["TTA"] + x["overflow"] + x["alive_end"])
+    assert x["TPQ"] == 0 and x["TTA"] == 0
+    n = x["radiative"] + x["nonradiative"]
+    eta = 1 / (1 + 0.1)
+    assert abs(r["eta_rad"] - eta) < 4 * np.sqrt(eta * (1 - eta) / n)
+    assert r["J"] > 0 and abs(r["emission_profile"].sum() - 1) < 1e-12
+
+
+def test_coupled_kmc_tpq_reduces_yield():
+    from orchid.coupled_kmc import CoupledDeviceKMC
+    from orchid.device_kmc import Layer
+    stack = [Layer(4, HOMO=-5.2, LUMO=-2.0), Layer(6, HOMO=-5.4, LUMO=-2.7),
+             Layer(4, HOMO=-6.0, LUMO=-2.8)]
+    kw = dict(Lx=8, Ly=8, W_anode=5.1, W_cathode=2.9, coulomb="full", seed=1, k_TT0=0.0)
+    r0 = CoupledDeviceKMC(stack, k_q0=0.0, **kw).run(7.0, n_eq=20000, n_meas=120000, mf_update=300)
+    r1 = CoupledDeviceKMC(stack, k_q0=1e9, **kw).run(7.0, n_eq=20000, n_meas=120000, mf_update=300)
+    assert r1["frac_TPQ"] > 0.1 and r1["eta_rad"] < r0["eta_rad"]
+
+
+def test_sublattice_extrapolation_runs_and_is_close():
+    from orchid.sublattice_kmc import mobility_sublattice_extrapolated
+    T = 300.0
+    s = 2.0 * kB_eV * T
+    lat = Lattice(8, a=1.6e-9, seed=3).set_disorder(s)
+    mu0, info = mobility_sublattice_extrapolated(lat, T, 0.05 * s, 0.05, factors=(4.0, 2.0),
+                                                 B=4, sim_time_factor=4000, seeds=(1, 2))
+    assert info["order"] == 1 and np.isfinite(mu0) and mu0 > 0
+    assert len(info["mu"]) == 2 and info["err"] >= 0
+    # linear Richardson: mu0 = 2 mu(tau/2) - mu(tau)
+    assert np.isclose(mu0, 2 * info["mu"][1] - info["mu"][0], rtol=1e-6)
+
+
+def test_gro_roundtrip_and_pbc_centres(tmp_path):
+    from orchid.morphology import write_gro, read_gro, molecule_centres
+    rng = np.random.default_rng(0)
+    box = np.array([3e-9] * 3)
+    cent = np.array([[0.0, 0.0, 0.0], [1.5e-9, 1.5e-9, 1.5e-9], [2.99e-9, 0.01e-9, 1.0e-9]])
+    ring = np.array([[np.cos(t), np.sin(t), 0] for t in np.arange(6) * np.pi / 3]) * 0.14e-9
+    xyz, atom, resid = [], [], []
+    for i, c in enumerate(cent):
+        Q, _ = np.linalg.qr(rng.normal(size=(3, 3)))
+        xyz += [((c + p) % box) for p in ring @ Q.T]
+        atom += ["C"] * 6
+        resid += [i + 1] * 6
+    fr = dict(title="t", resid=np.array(resid), resname=["M"] * 18, atom=atom, xyz=np.array(xyz), box=box)
+    c, mol = molecule_centres(fr)
+    d = c - cent
+    d -= box * np.round(d / box)
+    assert np.abs(d).max() < 1e-20 and list(np.bincount(mol)) == [6, 6, 6]
+    write_gro(tmp_path / "t.gro", [fr, fr])
+    frs = read_gro(tmp_path / "t.gro")
+    assert len(frs) == 2 and np.allclose(frs[1]["box"], box)
+    c2, _ = molecule_centres(frs[0])
+    d = c2 - cent
+    d -= box * np.round(d / box)
+    assert np.abs(d).max() < 1e-12
+
+
+def test_xyz_trajectory_and_masses(tmp_path):
+    from orchid.morphology import read_xyz_trajectory, molecule_centres, element_mass
+    assert element_mass("Cl1") == 35.45 and element_mass("CA") == 12.011 and element_mass("Ir") == 192.22
+    txt = ""
+    for f in range(2):
+        txt += '3\nLattice="10 0 0 0 10 0 0 0 10"\nO 9.9 0 0\nH 0.5 0 0\nH 9.4 0 0\n'
+    p = tmp_path / "w.xyz"
+    p.write_text(txt)
+    fr = read_xyz_trajectory(p)
+    assert len(fr) == 2 and np.allclose(fr[0]["box"], 1e-9)
+    c, _ = molecule_centres(fr[0], atoms_per_molecule=3)
+    x = (c[0, 0] * 1e10 + 0.5) % 10 - 0.5                  # centre near x = 9.9 A (= -0.1)
+    exp = (15.999 * -0.1 + 1.008 * 0.5 + 1.008 * -0.6) / (15.999 + 2 * 1.008)
+    assert abs(x - exp) < 1e-9
+
+
+def test_trajectory_mobility_equals_lattice():
+    from orchid.morphology import trajectory_mobility
+    lat = Lattice(8, a=1.6e-9, seed=2).set_disorder(0.07)
+    box = np.array([8 * 1.6e-9] * 3)
+    fr = dict(resid=None, atom=["C"] * lat.N, xyz=lat.ijk * 1.6e-9, box=box)
+    r = trajectory_mobility([fr], 300.0, energies=lat.energy, atoms_per_molecule=1,
+                            r_cut=np.sqrt(3) * 1.6e-9 * 1.0001, alpha=10.0)
+    ref = me_linear_response(lat, 300.0, 1e-6, alpha=10.0)[0]
+    assert abs(r["mu_mean"] / ref - 1) < 1e-8
+
+
+def test_quiz_bank_consistent():
+    from orchid import tutorials
+    import os
+    secs = tutorials.list_tutorials()
+    assert len(secs) == 13
+    root = os.path.dirname(os.path.dirname(os.path.abspath(tutorials.__file__)))
+    for k, title, nb in secs:
+        qs = tutorials.questions(k)
+        assert len(qs) == 5
+        for qq in qs:
+            assert len(qq["options"]) == 4 and qq["answer"] in "abcd" and len(qq["why"]) > 20
+        key = "".join(qq["answer"] for qq in qs)
+        score, n, _ = tutorials.grade(k, key)
+        assert score == n == 5
+        nbp = os.path.join(root, "docs", "tutorials", nb)
+        if os.path.isdir(os.path.join(root, "docs")):
+            assert os.path.exists(nbp), nbp
+    with pytest.raises(ValueError):
+        tutorials.grade("01", "ab")
+
+
+def test_quiz_interactive():
+    from orchid import tutorials
+    key = "".join(qq["answer"] for qq in tutorials.questions("05"))
+    it = iter(key)
+    out = []
+    assert tutorials.interactive("5", input_fn=lambda _: next(it), print_fn=out.append) == 5

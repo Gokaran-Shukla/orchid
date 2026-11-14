@@ -7,6 +7,9 @@ jv         drift-diffusion J-V of a single-layer diode (dark or illuminated)
 egdm       evaluate the EGDM / GDM analytical models
 roadmap    print the development roadmap (done / planned)
 parallel   show MPI ranks, threads and GPU availability
+tutorials  list the tutorial notebooks (docs/tutorials)
+quiz       interactive self-assessment quiz for one tutorial section
+bench      evaluate (or re-run with --run) the validation suite, from a source checkout
 info       print module overview
 """
 import argparse
@@ -52,6 +55,24 @@ def _egdm(a):
     from .models import egdm_pasveer
     mu = egdm_pasveer(a.T, a.p, a.F, a.sigma, a.a * 1e-9, nu0=a.nu0)
     print(f"mu = {mu * 1e4:.4e} cm^2/Vs")
+
+
+def _tutorials(a):
+    from .tutorials import list_tutorials
+    for k, title, nb in list_tutorials():
+        print(f"{k}  {title:<62s} docs/tutorials/{nb}")
+
+
+def _bench(a):
+    import os
+    import subprocess
+    import sys
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    script = os.path.join(root, "validation", "run_all.py")
+    if not os.path.exists(script):
+        raise SystemExit("orchid bench needs a source checkout (validation/ not found next to the package)")
+    cmd = [sys.executable, script] + (["--run"] if a.run else []) + list(a.ids)
+    raise SystemExit(subprocess.call(cmd))
 
 
 def main(argv=None):
@@ -105,6 +126,15 @@ def main(argv=None):
                                 print("progress: %d/%d done" % __import__("orchid.roadmap", fromlist=["x"]).progress())))
     pz = sub.add_parser("parallel", help="show available parallel resources")
     pz.set_defaults(f=lambda a: print(json.dumps(__import__("orchid.parallel", fromlist=["x"]).describe(), indent=1)))
+    t = sub.add_parser("tutorials", help="list tutorial notebooks")
+    t.set_defaults(f=_tutorials)
+    qz = sub.add_parser("quiz", help="interactive quiz for a tutorial section")
+    qz.add_argument("section", nargs="?", default=None)
+    qz.set_defaults(f=lambda a: __import__("orchid.tutorials", fromlist=["x"]).interactive(a.section))
+    b = sub.add_parser("bench", help="evaluate / re-run the validation suite (source checkout)")
+    b.add_argument("--run", action="store_true", help="re-run the benchmarks first")
+    b.add_argument("ids", nargs="*", help="benchmark IDs, e.g. V24 V25")
+    b.set_defaults(f=_bench)
     i = sub.add_parser("info")
     i.set_defaults(f=lambda a: print(__import__("orchid").__doc__))
     a = p.parse_args(argv)

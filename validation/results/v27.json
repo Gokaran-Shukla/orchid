@@ -1,0 +1,17 @@
+{
+ "kmc_independent_hops_per_s": 34836500.71491971,
+ "kmc_interacting_events_per_s": 982531.0305896655,
+ "sublattice_cycles_per_s": 7265.51190858088,
+ "me_linear_response_64k_sites_s": 1.5761864799997056,
+ "dd_jv_21pts_s": 0.7350465760000588,
+ "device_kmc_events_per_s": 15572.371068376982,
+ "coupled_kmc_events_per_s": 17085.939399538634,
+ "machine": {
+  "cpus": 2,
+  "python": "3.13.18",
+  "numpy": "2.5.3",
+  "numba": "0.68.1",
+  "orchid": "0.4.0",
+  "processor": "x86_64"
+ }
+}

@@ -1,0 +1,795 @@
+{
+ "01": {
+  "title": "Hopping rates and energetic disorder",
+  "notebook": "01_rates_and_disorder.ipynb",
+  "questions": [
+   {
+    "q": "A Miller-Abrahams hop goes uphill by dE > 0 over distance r. Its rate is",
+    "options": [
+     "nu0 exp(-2 alpha r) exp(-dE/2kT)",
+     "nu0 exp(-(dE + lambda)^2 / 4 lambda kT)",
+     "nu0 exp(-2 alpha r) exp(-dE/kT)",
+     "nu0 exp(-2 alpha r)"
+    ],
+    "answer": "c",
+    "why": "MA rates are asymmetric: downhill hops pay only the tunnelling factor exp(-2 alpha r), uphill hops also pay the full Boltzmann factor exp(-dE/kT). The exp(-dE/2kT) form is the symmetric variant and the last option is Marcus theory."
+   },
+   {
+    "q": "Which relation must every rate model in orchid.rates satisfy so that equilibrium is the Fermi-Dirac/Boltzmann state?",
+    "options": [
+     "W_ij = W_ji",
+     "W_ij proportional to r^-6",
+     "sum_j W_ij = nu0",
+     "W_ij / W_ji = exp(-(E_j - E_i)/kT)"
+    ],
+    "answer": "d",
+    "why": "Detailed balance, W_ij/W_ji = exp(-(E_j-E_i)/kT), guarantees that the equilibrium occupation is Boltzmann (or Fermi-Dirac with exclusion). V11 checks it to 7e-15 for MA, Marcus and MLJ."
+   },
+   {
+    "q": "In Marcus theory, what happens to the rate as the driving force -dE grows beyond the reorganisation energy lambda?",
+    "options": [
+     "It keeps increasing",
+     "It saturates at 2 pi J^2 / hbar",
+     "It decreases (inverted region)",
+     "It becomes temperature independent"
+    ],
+    "answer": "c",
+    "why": "The Marcus rate is proportional to exp(-(dE+lambda)^2/(4 lambda kT)). It peaks at -dE = lambda and falls again beyond that: this is the inverted region. Miller-Abrahams has no such regime."
+   },
+   {
+    "q": "The dimensionless disorder sigma-hat used throughout ORCHID is defined as",
+    "options": [
+     "sigma^2 / kT",
+     "kT / sigma",
+     "sigma / kT",
+     "sigma / eFa"
+    ],
+    "answer": "c",
+    "why": "sigma-hat = sigma/kT. Most GDM/EGDM results (for example ln mu ~ -c sigma-hat^2) are written in terms of it."
+   },
+   {
+    "q": "How do the Förster and Dexter exciton transfer rates fall off with distance r?",
+    "options": [
+     "Förster as r^-6, Dexter as exp(-2r/L)",
+     "Both exponentially",
+     "Förster as exp(-2r/L), Dexter as r^-6",
+     "Both as r^-6"
+    ],
+    "answer": "a",
+    "why": "Förster transfer is dipole-dipole coupling, so k = (1/tau)(R0/r)^6. Dexter transfer is an electron-exchange process that needs orbital overlap, so it decays exponentially with distance."
+   }
+  ]
+ },
+ "02": {
+  "title": "Kinetic Monte Carlo: mobility, TOF and relaxation",
+  "notebook": "02_kinetic_monte_carlo.ipynb",
+  "questions": [
+   {
+    "q": "In the BKL/Gillespie algorithm, the time step after an event is drawn as",
+    "options": [
+     "dt = u/R_tot",
+     "dt = -ln(u)/R_tot, u uniform in (0,1]",
+     "dt = 1/R_tot",
+     "dt = -ln(u)/W_chosen"
+    ],
+    "answer": "b",
+    "why": "The waiting time of a Poisson process with total rate R_tot is exponentially distributed. Sampling it by inversion gives dt = -ln(u)/R_tot. The event itself is chosen with probability W_i/R_tot."
+   },
+   {
+    "q": "What does the Fenwick tree in orchid._fenwick buy for interacting KMC with n events?",
+    "options": [
+     "Exact parallelism",
+     "O(log n) selection and O(log n) update",
+     "O(1) selection, O(n) update",
+     "O(n) selection, O(1) update"
+    ],
+    "answer": "b",
+    "why": "A binary indexed tree keeps prefix sums, so event selection and the local rate updates both cost O(log n). V16/R11 measure a 27-135x speed-up over the dense O(n) engine."
+   },
+   {
+    "q": "At low density and long times, the mean energy of carriers in a Gaussian DOS of width sigma relaxes to",
+    "options": [
+     "0",
+     "-sigma^2/(2kT)",
+     "-sigma",
+     "-sigma^2/kT"
+    ],
+    "answer": "d",
+    "why": "The occupied DOS is the Gaussian multiplied by the Boltzmann factor, which is again a Gaussian, centred at -sigma^2/kT (Bässler 1993). V4 recovers this to 1.7 % at sigma-hat = 2."
+   },
+   {
+    "q": "A time-of-flight transient becomes dispersive when disorder increases. What do you see?",
+    "options": [
+     "The plateau tilts and the post-transit tail broadens",
+     "A flat plateau and a sharp drop",
+     "The current increases after t_tr",
+     "No transit time can be defined"
+    ],
+    "answer": "a",
+    "why": "Dispersive (Scher-Montroll-like) transport shows a current that already decays before t_tr and a long tail after it. The transit time is then taken from the intersection of the log-log asymptotes (V10)."
+   },
+   {
+    "q": "How is the drift mobility obtained from an independent-carrier KMC run?",
+    "options": [
+     "mu = 1/(n e rho)",
+     "mu = <x(t)>/(F t), the mean drift displacement per unit field and time",
+     "mu = D e/kT",
+     "mu = nu0 a^2/kT"
+    ],
+    "answer": "b",
+    "why": "The carriers are driven by a field F along x. The mean drift velocity is <x>/t, and mu = v/F. Reduced fields eFa much smaller than sigma keep the run in the linear-response regime."
+   }
+  ]
+ },
+ "03": {
+  "title": "Master equation and the EGDM",
+  "notebook": "03_master_equation_egdm.ipynb",
+  "questions": [
+   {
+    "q": "In linear response, the master equation maps onto which problem?",
+    "options": [
+     "An eigenvalue problem",
+     "A random walk with absorbing boundaries",
+     "A resistor network with conductances G_ij proportional to W_ij f_i (1 - f_j)",
+     "A Poisson equation"
+    ],
+    "answer": "c",
+    "why": "Linearising the steady-state ME around equilibrium gives Kirchhoff's laws on a network with conductances (e^2/kT) W_ij f_i (1-f_j). ORCHID solves it with CG, preconditioned by Jacobi or AMG."
+   },
+   {
+    "q": "What causes the density enhancement g1(p) of the EGDM?",
+    "options": [
+     "Field-assisted hopping",
+     "Filling of deep tail states, which raises the effective transport level",
+     "Coulomb repulsion",
+     "Higher temperature"
+    ],
+    "answer": "b",
+    "why": "Extra carriers first fill the deepest states. The remaining carriers sit higher in the DOS and need less activation, so mu rises steeply once p is above about 1e-4 per site (V2)."
+   },
+   {
+    "q": "In Pasveer's parametrisation mu0(T) = mu_00 exp(-c2 sigma-hat^2), c2 is approximately",
+    "options": [
+     "0.42",
+     "0.11",
+     "4/9 = 0.44 exactly",
+     "1"
+    ],
+    "answer": "a",
+    "why": "Pasveer et al. (PRL 2005) fitted c1 = 1.8e-9 and c2 = 0.42 for the 3D lattice with alpha = 10/a. ORCHID's own fit gives c2 = 0.36 (V1). The difference comes from the finite lattice and the hopping range."
+   },
+   {
+    "q": "Why is the ME much cheaper than KMC for the zero-field mobility?",
+    "options": [
+     "It uses a smaller lattice",
+     "It runs on the GPU only",
+     "It solves one sparse linear system and has no stochastic noise",
+     "It ignores disorder"
+    ],
+    "answer": "c",
+    "why": "One CG solve gives the exact ensemble mean for that disorder realisation, whereas KMC must average very long trajectories. V1 shows that the two agree to 3 % where both apply."
+   },
+   {
+    "q": "For a Gaussian DOS at high density, the generalised Einstein ratio g3 = eD/(mu kT) is",
+    "options": [
+     "zero",
+     "greater than 1",
+     "less than 1",
+     "exactly 1"
+    ],
+    "answer": "b",
+    "why": "g3 = (n/kT)(dE_F/dn). For a degenerate (state-filling) Gaussian DOS this exceeds 1, and the drift-diffusion code must include it (R05; see van Mensfoort and Coehoorn)."
+   }
+  ]
+ },
+ "04": {
+  "title": "Drift-diffusion: diodes, solar cells and OLEDs",
+  "notebook": "04_drift_diffusion.ipynb",
+  "questions": [
+   {
+    "q": "Why is the Scharfetter-Gummel discretisation used for the current between two nodes?",
+    "options": [
+     "It is second-order accurate in h",
+     "It uses the exact exponential solution of J between nodes, so it stays stable for large potential steps",
+     "It avoids solving Poisson's equation",
+     "It conserves energy"
+    ],
+    "answer": "b",
+    "why": "SG integrates J = q mu n F + q D n' exactly for a constant field between the nodes. The result contains Bernoulli functions B(dpsi/kT) and avoids the oscillations of central differences."
+   },
+   {
+    "q": "The trap-free space-charge-limited current (Mott-Gurney) is",
+    "options": [
+     "J = 9/8 eps mu V^2 / L^3",
+     "J = eps mu V / L^2",
+     "J = 9/8 eps mu V / L^3",
+     "J = q n mu V / L"
+    ],
+    "answer": "a",
+    "why": "Mott-Gurney: J = 9 eps mu V^2/(8 L^3). V5 approaches it (ratio 1.06 at 40 V) once diffusion and the built-in voltage become negligible."
+   },
+   {
+    "q": "Koster et al. (2005) predict that Voc depends on the light intensity (generation G) as",
+    "options": [
+     "dVoc/dln G = kT/e for bimolecular (Langevin) recombination",
+     "dVoc/dln G = Eg/e",
+     "Voc is independent of G",
+     "dVoc/dln G = 2kT/e"
+    ],
+    "answer": "a",
+    "why": "With bimolecular recombination, Voc = Eg/e - (kT/e) ln((1-P)gamma Nc^2/(P G)). The slope is kT/e. ORCHID reproduces it with a slope of 1.004 kT/e and deviations of at most 1.3 mV (V6)."
+   },
+   {
+    "q": "The Langevin recombination coefficient is",
+    "options": [
+     "gamma = kT mu / q",
+     "gamma = eps / (q mu)",
+     "gamma = q (mu_n + mu_p) / eps",
+     "gamma = q mu_n mu_p / eps"
+    ],
+    "answer": "c",
+    "why": "Langevin: gamma_L = q(mu_n+mu_p)/(eps0 eps_r). ``langevin_prefactor`` scales it for reduced recombination."
+   },
+   {
+    "q": "For the metal-insulator-metal picture used in Device, with injection barriers phi_a and phi_c, the built-in voltage is",
+    "options": [
+     "(phi_a + phi_c)/e",
+     "Eg/e",
+     "(Eg - phi_a - phi_c)/e",
+     "0"
+    ],
+    "answer": "c",
+    "why": "The difference between the electrode work functions equals the gap minus the two injection barriers. Below Vbi the dark current is diffusion-limited, above it the current becomes drift/SCLC-limited."
+   }
+  ]
+ },
+ "05": {
+  "title": "Transients and small-signal analysis",
+  "notebook": "05_transients_smallsignal.ipynb",
+  "questions": [
+   {
+    "q": "Photo-CELIV extracts the mobility (Juska et al. 2000, small-charge limit) from",
+    "options": [
+     "mu = d^2 / (V t_tr)",
+     "mu = A t_max / d",
+     "mu = 2 d^2 / (3 A t_max^2)",
+     "mu = j0 / dj"
+    ],
+    "answer": "c",
+    "why": "With a ramp of slope A, the extraction peak t_max gives mu = 2d^2/(3A t_max^2) (plus a correction for dj/j0). V17 shows that the extracted mu converges to the input mu once qA t_max >> kT."
+   },
+   {
+    "q": "The low-frequency capacitance of a trap-free single-carrier SCLC diode is",
+    "options": [
+     "C_geo",
+     "3/4 C_geo",
+     "1/2 C_geo",
+     "2 C_geo"
+    ],
+    "answer": "b",
+    "why": "Space charge makes the small-signal response lag the transit, so C(0) = 3/4 eps/L (Martens). V19 obtains 0.76-0.77 and a peak at f tau_dc = 0.72."
+   },
+   {
+    "q": "What does a small-perturbation transient photovoltage (TPV) measure?",
+    "options": [
+     "The transit time",
+     "The lifetime of the excess carriers at open circuit",
+     "The exciton diffusion length",
+     "The series resistance"
+    ],
+    "answer": "b",
+    "why": "A weak light pulse at Voc raises the carrier density a little. The decay of Voc gives the small-signal recombination lifetime. In thin devices this differs from the bulk 1/(2 gamma n) because of electrode charge (V17)."
+   },
+   {
+    "q": "IMPS modulates ____ and measures ____.",
+    "options": [
+     "voltage; current",
+     "light intensity; photocurrent at short circuit",
+     "temperature; current",
+     "light; photovoltage at open circuit"
+    ],
+    "answer": "b",
+    "why": "IMPS is the photocurrent transfer function at short circuit. IMVS is the photovoltage version at open circuit."
+   },
+   {
+    "q": "The dc transit time of a trap-free SCLC diode is",
+    "options": [
+     "3/4 L^2 / (mu V)",
+     "L^2 / (mu V)",
+     "4/3 L^2/(mu V)",
+     "L / (mu V)"
+    ],
+    "answer": "c",
+    "why": "The field grows across an SCLC device, and integrating dx/(mu F) gives tau_dc = (4/3) L^2/(mu V). This is the time scale for the admittance analysis."
+   }
+  ]
+ },
+ "06": {
+  "title": "2D drift-diffusion and organic field-effect transistors",
+  "notebook": "06_dd2d_ofet.ipynb",
+  "questions": [
+   {
+    "q": "In the gradual-channel model, the linear-regime drain current per unit width is",
+    "options": [
+     "q n mu V_D / L",
+     "mu C_i (V_G - V_T)^2 / (2L)",
+     "mu C_i (V_G - V_T) V_D / L",
+     "mu C_i V_D^2 / L"
+    ],
+    "answer": "c",
+    "why": "For |V_D| << |V_G - V_T| the channel is a uniform sheet of charge C_i(V_G-V_T), so I/W = mu C_i (V_G-V_T) V_D / L."
+   },
+   {
+    "q": "In saturation, the gradual-channel current is",
+    "options": [
+     "Independent of V_G",
+     "mu C_i (V_G - V_T) V_D / L",
+     "Proportional to V_D^2",
+     "mu C_i (V_G - V_T)^2 / (2L)"
+    ],
+    "answer": "d",
+    "why": "Beyond pinch-off, I_sat/W = mu C_i (V_G-V_T)^2/(2L). The saturation mobility is extracted from the slope of sqrt(I_D) against V_G."
+   },
+   {
+    "q": "Why does an OFET need a 2D solver?",
+    "options": [
+     "1D codes cannot handle holes",
+     "Because transport is 3D",
+     "The field has strong lateral and vertical components, and the accumulation layer is a few nm thick",
+     "To include optics"
+    ],
+    "answer": "c",
+    "why": "The gate field confines charge vertically while the drain field drives it laterally. The contacts are 2D boundaries. Dd2d solves the coupled Poisson/continuity equations on an (x, y) grid."
+   },
+   {
+    "q": "What does the 15-colour Jacobian in dd2d do?",
+    "options": [
+     "It uses 15 Newton steps",
+     "It perturbs structurally independent unknowns together, so building the finite-difference Jacobian costs 15 residual evaluations instead of N",
+     "It solves 15 voltages at once",
+     "It uses 15 threads"
+    ],
+    "answer": "b",
+    "why": "Unknowns whose stencils do not overlap can be perturbed at the same time. Graph colouring reduces the cost of the sparse Jacobian to one residual evaluation per colour."
+   },
+   {
+    "q": "V23 compares the 2D DD OFET with",
+    "options": [
+     "NIST Sesame",
+     "The gradual-channel model with the input mobility",
+     "Experimental pentacene data",
+     "The 3D device KMC"
+    ],
+    "answer": "b",
+    "why": "The mobilities extracted from the simulated transfer curves reproduce the input mobility: 0.97x in the linear regime and 1.06x in saturation."
+   }
+  ]
+ },
+ "07": {
+  "title": "Optics: transfer matrices, generation and outcoupling",
+  "notebook": "07_optics.ipynb",
+  "questions": [
+   {
+    "q": "The transfer-matrix method assumes",
+    "options": [
+     "Coherent plane waves in planar layers, with interface and propagation matrices",
+     "Incoherent light",
+     "Geometric optics",
+     "Scattering by particles"
+    ],
+    "answer": "a",
+    "why": "Each interface (Fresnel coefficients) and each layer (phase exp(i k d)) is a 2x2 matrix. The product gives the field everywhere. ORCHID agrees with the independent tmm package to 1e-15 (V15)."
+   },
+   {
+    "q": "The local absorption that sets the exciton generation rate is proportional to",
+    "options": [
+     "|E|",
+     "n^2",
+     "n k |E|^2 (i.e. Im(eps) |E|^2)",
+     "R + T"
+    ],
+    "answer": "c",
+    "why": "Absorbed power density is (1/2) omega eps0 Im(eps) |E|^2 = omega eps0 n k |E|^2. Dividing by the photon energy and integrating over the AM1.5G spectrum gives G(x)."
+   },
+   {
+    "q": "For any lossless check of an optics solver, which identity must hold?",
+    "options": [
+     "R + T = 2",
+     "A = 0 always",
+     "R + T + A = 1",
+     "R = T"
+    ],
+    "answer": "c",
+    "why": "Energy conservation. V8 checks the Airy formula to 1e-16 and R+T+A=1 to 1e-5 for absorbing stacks."
+   },
+   {
+    "q": "The classical ray-optics estimate of OLED outcoupling into air is",
+    "options": [
+     "n^2",
+     "1/n",
+     "1/(2 n^2)",
+     "0.5"
+    ],
+    "answer": "c",
+    "why": "With isotropic emission inside a medium of index n, only the escape cone sin(theta) < 1/n gets out: eta ~ 1/(2n^2), about 20 % for n = 1.7. The dipole model (R20) refines this."
+   },
+   {
+    "q": "Near a metal mirror, a dipole's decay rate oscillates with distance and is strongly enhanced at very short distances. Why?",
+    "options": [
+     "Exciton diffusion",
+     "Interference with its reflected field (CPS); near-field coupling to surface plasmons and lossy waves",
+     "Thermal effects",
+     "Spin statistics"
+    ],
+    "answer": "b",
+    "why": "The Chance-Prock-Silbey theory gives the oscillation from interference and the short-distance quenching from evanescent coupling into the metal. ORCHID reproduces the perfect-mirror formulas to 8e-4 (V20)."
+   }
+  ]
+ },
+ "08": {
+  "title": "Excitons: diffusion, annihilation and quenching",
+  "notebook": "08_excitons.ipynb",
+  "questions": [
+   {
+    "q": "In 3D, the exciton diffusion coefficient from KMC rates k_j to neighbours at r_j is",
+    "options": [
+     "D = sum k_j r_j / 3",
+     "D = sum k_j r_j^2",
+     "D = sum k_j r_j^2 / 6",
+     "D = 1 / (6 tau)"
+    ],
+    "answer": "c",
+    "why": "<r^2> = 6 D t in 3D, and each hop adds r_j^2 at rate k_j. V7 confirms this within statistical error."
+   },
+   {
+    "q": "The exciton diffusion length is",
+    "options": [
+     "L_D = D tau",
+     "L_D = D / tau",
+     "L_D = sqrt(6 D tau)",
+     "L_D = sqrt(D tau)"
+    ],
+    "answer": "d",
+    "why": "L_D = sqrt(D tau) by convention, which is the 1D RMS displacement. Some papers quote sqrt(6 D tau) for the 3D displacement, so always check the definition."
+   },
+   {
+    "q": "At high exciton density, triplet-triplet annihilation adds which loss term to the continuity equation?",
+    "options": [
+     "-gamma n p",
+     "-k n",
+     "-n / tau",
+     "-gamma_TT n^2"
+    ],
+    "answer": "d",
+    "why": "TTA is bimolecular. V18 checks that the KMC loss rate divided by n^2 is constant (5 % spread), so the continuum gamma_TT is well defined."
+   },
+   {
+    "q": "For a purely fluorescent emitter, spin statistics limit the singlet fraction to",
+    "options": [
+     "25 %",
+     "75 %",
+     "50 %",
+     "100 %"
+    ],
+    "answer": "a",
+    "why": "Electron-hole recombination produces singlets and triplets in a 1:3 ratio. Phosphorescent or TADF emitters can harvest the triplets as well (eta_ST = 1)."
+   },
+   {
+    "q": "Why does EQE roll off at high current in OLEDs?",
+    "options": [
+     "Bimolecular quenching (TTA, exciton-polaron quenching TPQ) grows faster than the generation",
+     "The emission wavelength shifts",
+     "Charge balance always improves",
+     "Outcoupling drops"
+    ],
+    "answer": "a",
+    "why": "Loss channels proportional to n^2 (TTA) or n*p (TPQ) grow faster than the linear radiative channel, so the quantum efficiency falls as J rises."
+   }
+  ]
+ },
+ "09": {
+  "title": "3D device KMC with concurrent excitons",
+  "notebook": "09_device_kmc_coupled.ipynb",
+  "questions": [
+   {
+    "q": "How does the device KMC compute the current with low noise?",
+    "options": [
+     "From the Einstein relation",
+     "From the mean-field potential",
+     "By counting carriers that reach the electrodes",
+     "Ramo-Shockley: every hop contributes e q dz/(L A)"
+    ],
+    "answer": "d",
+    "why": "Every displacement induces charge on the electrodes, so all hops contribute. This converges much faster than counting only the extracted carriers."
+   },
+   {
+    "q": "The image charge in the electrode makes a carrier near the contact",
+    "options": [
+     "Higher in energy",
+     "Lower in energy, which lowers the injection barrier",
+     "Leave the device",
+     "Unchanged"
+    ],
+    "answer": "b",
+    "why": "The image attraction -e^2/(16 pi eps z) lowers the barrier near the electrode. This is Schottky barrier lowering, and it strongly affects injection-limited currents."
+   },
+   {
+    "q": "Why are electrostatics split into a mean-field sheet part and an exact short-range part?",
+    "options": [
+     "To remove image charges",
+     "To use the GPU",
+     "The sheet part is more accurate",
+     "Exact long-range Coulomb sums are too expensive. Sheets give the long-range part cheaply, and close pairs are treated exactly."
+    ],
+    "answer": "d",
+    "why": "The 1D sheet Green's function updates in O(Lz) per event. The exact screened Coulomb within r_coul minus its sheet part makes the sum converge to full Coulomb as r_coul grows."
+   },
+   {
+    "q": "What changed for exciton-polaron quenching in v0.4 (CoupledDeviceKMC)?",
+    "options": [
+     "TPQ is evaluated against the live polaron positions in the same event loop, not against a frozen configuration",
+     "TPQ was removed",
+     "TPQ became a continuum term",
+     "Polarons became immobile"
+    ],
+    "answer": "a",
+    "why": "In v0.3, excitons saw a polaron snapshot drawn from the mean density profile. Now charges and excitons share one clock and two Fenwick trees, so all correlations are kept (R24)."
+   },
+   {
+    "q": "Which exact identity does V24 check in every coupled run?",
+    "options": [
+     "eta_rad = 1",
+     "J = 0 at V = 0",
+     "gamma_b = 1",
+     "formed + alive_start = radiative + non-radiative + TPQ + TTA + overflow + alive_end"
+    ],
+    "answer": "d",
+    "why": "Every exciton that exists during the measurement must end in exactly one channel or still be alive at the end. V24 finds an imbalance of exactly 0 in all runs."
+   }
+  ]
+ },
+ "10": {
+  "title": "Morphology, DFT couplings and MD trajectories",
+  "notebook": "10_morphology_md.ipynb",
+  "questions": [
+   {
+    "q": "For a symmetric dimer, DIPRO's effective transfer integral equals",
+    "options": [
+     "Zero",
+     "Half the dimer orbital splitting",
+     "The full dimer splitting",
+     "The HOMO energy"
+    ],
+    "answer": "b",
+    "why": "For identical monomers with zero site-energy difference, the bonding/antibonding splitting is 2|J|. V21 checks this to 0.24 % with HF/STO-3G in PySCF."
+   },
+   {
+    "q": "Why must molecules be made whole across periodic boundaries before computing centres of mass?",
+    "options": [
+     "GROMACS requires it",
+     "It changes the energies",
+     "To save memory",
+     "A molecule split by the boundary would otherwise get its centre somewhere in the middle of the box"
+    ],
+    "answer": "d",
+    "why": "molecule_centres unwraps every atom by the minimum image relative to the first atom of its molecule. V26 places 397 boundary-straddling molecules and recovers the centres exactly."
+   },
+   {
+    "q": "Dipolar disorder produces site energies that are",
+    "options": [
+     "Always zero on average with zero width",
+     "Uncorrelated",
+     "Spatially correlated, which extends the sqrt(F) Poole-Frenkel-like regime",
+     "Temperature dependent"
+    ],
+    "answer": "c",
+    "why": "Each site energy is a sum over many nearby dipoles, so neighbouring sites share most of the sum. This is the correlated disorder model (CDM, Novikov)."
+   },
+   {
+    "q": "The transfer integral between molecules typically decays with distance as",
+    "options": [
+     "r^-1",
+     "r^-6",
+     "constant",
+     "exp(-beta r)"
+    ],
+    "answer": "d",
+    "why": "Orbital overlap decays exponentially. V21 extracts beta = 2.9 per Angstrom for cofacial ethylene."
+   },
+   {
+    "q": "What does V26 prove about the graph solver?",
+    "options": [
+     "MD is always needed",
+     "Mobility does not depend on morphology",
+     "A lattice-shaped 'trajectory' imported through molecule_centres gives the same ME mobility as the Lattice solver to 3e-14",
+     "Graphs are faster"
+    ],
+    "answer": "c",
+    "why": "This exact equivalence shows that the import -> MolecularGraph -> master equation pipeline adds no error, so differences on real morphologies are physical."
+   }
+  ]
+ },
+ "11": {
+  "title": "Exhaustive search, ML surrogates and Bayesian inversion",
+  "notebook": "11_search_ml_bayes.ipynb",
+  "questions": [
+   {
+    "q": "A full grid with n points per parameter in d dimensions needs",
+    "options": [
+     "log n evaluations",
+     "d^n evaluations",
+     "n^d evaluations",
+     "n d evaluations"
+    ],
+    "answer": "c",
+    "why": "This exponential cost is why zoom_search refines the grid around the best point level by level, and why surrogates help for expensive models."
+   },
+   {
+    "q": "Why does ORCHID fit mobility data with log-RMSE?",
+    "options": [
+     "To avoid negative mobilities only",
+     "Mobility spans many decades, so relative (log) errors weight all points fairly",
+     "Because data are linear",
+     "It is faster"
+    ],
+    "answer": "b",
+    "why": "On a linear scale the largest-mobility points would dominate the fit. The log metric treats a factor of 2 equally everywhere."
+   },
+   {
+    "q": "A Gaussian-process surrogate provides",
+    "options": [
+     "Only a point prediction",
+     "A predictive mean and an uncertainty; hyperparameters set by maximising the marginal likelihood",
+     "A neural network",
+     "An exact solution"
+    ],
+    "answer": "b",
+    "why": "The GP posterior gives mean and variance. GPSurrogate.fit grid-searches length scale, signal and noise using the log marginal likelihood."
+   },
+   {
+    "q": "V22 reports '3/3 covered'. What does that mean?",
+    "options": [
+     "Three folds of cross-validation",
+     "Three CPUs were used",
+     "The true parameters lie inside the 95 % credible intervals for all three parameters",
+     "Three seeds agree"
+    ],
+    "answer": "c",
+    "why": "This is a calibration check of the Bayesian inversion: the synthetic ground truth must fall inside the reported intervals."
+   },
+   {
+    "q": "Latin hypercube sampling ensures that",
+    "options": [
+     "Samples are correlated",
+     "All points lie on a grid",
+     "Each parameter's range is stratified, one sample per stratum",
+     "Only corners are sampled"
+    ],
+    "answer": "c",
+    "why": "LHS spreads n samples so that every one-dimensional projection is evenly covered. It is a good design for training surrogates."
+   }
+  ]
+ },
+ "12": {
+  "title": "Massive parallelism: MPI, threads, GPU and sublattice KMC",
+  "notebook": "12_parallel_gpu.ipynb",
+  "questions": [
+   {
+    "q": "Why is independent-carrier KMC ideal for GPUs?",
+    "options": [
+     "Because of Coulomb interactions",
+     "It needs double precision",
+     "It uses the Fenwick tree",
+     "Walkers do not interact, so each GPU thread can propagate one walker"
+    ],
+    "answer": "d",
+    "why": "Embarrassingly parallel. orchid.gpu.kmc_independent_gpu launches one CUDA thread per walker."
+   },
+   {
+    "q": "In the synchronous-sublattice algorithm, blocks of the same sublattice can be updated in parallel because",
+    "options": [
+     "They are random",
+     "They are separated by at least the interaction range, so their events are independent within a window",
+     "They use different seeds",
+     "They contain no carriers"
+    ],
+    "answer": "b",
+    "why": "Blocks of side B >= 2 r_c in an 8-colour checkerboard never share hops or neighbours within one window (Shim and Amar 2005)."
+   },
+   {
+    "q": "How does v0.4 remove the time-window bias of sublattice KMC?",
+    "options": [
+     "By running several windows tau and extrapolating mu(tau) to tau -> 0",
+     "By using one block",
+     "By using the GPU",
+     "By increasing the lattice size"
+    ],
+    "answer": "a",
+    "why": "mobility_sublattice_extrapolated fits mu(tau) with a polynomial in tau. V25 reduces the error from about 5 % (single window) to about 1 %."
+   },
+   {
+    "q": "ORCHID's MPI task farm reproduces the serial result bit-for-bit because",
+    "options": [
+     "Results are averaged",
+     "Random seeds are attached to tasks, not to ranks",
+     "Only rank 0 computes",
+     "MPI is deterministic"
+    ],
+    "answer": "b",
+    "why": "Each task carries its own seed, so the decomposition over ranks cannot change any random stream. V16 checks this."
+   },
+   {
+    "q": "Amdahl's law: if a fraction s of the runtime is serial, the speed-up on P cores is at most",
+    "options": [
+     "1 / (s + (1 - s)/P)",
+     "P s",
+     "s P / (1 - s)",
+     "P"
+    ],
+    "answer": "a",
+    "why": "The serial part does not shrink. This is why ORCHID parallelises the outermost loop (ensembles, sweeps) as well as the inner kernels."
+   }
+  ]
+ },
+ "13": {
+  "title": "Benchmarking and validation",
+  "notebook": "13_benchmarking.ipynb",
+  "questions": [
+   {
+    "q": "Why does V15 compare against NIST Sesame on identical grids?",
+    "options": [
+     "Identical inputs isolate the equations and discretisation, so agreement to 1e-6 shows both codes solve the same problem",
+     "To test optics",
+     "Sesame is faster",
+     "To compare speed"
+    ],
+    "answer": "a",
+    "why": "With the same mesh and parameters, any remaining difference comes from the model or the discretisation, not from resolution."
+   },
+   {
+    "q": "When a benchmark fails, what does validation/criteria.py say to do?",
+    "options": [
+     "Fix the code; tolerances are set in advance",
+     "Loosen the tolerance",
+     "Delete the benchmark",
+     "Change the reference"
+    ],
+    "answer": "a",
+    "why": "Tolerances come from the published references and are fixed before running. Loosening them after the fact would make the benchmark meaningless."
+   },
+   {
+    "q": "How should a stochastic KMC result be compared to an exact value?",
+    "options": [
+     "By a z-score: |x - x_exact| / sigma_stat <= 3",
+     "It must be exactly equal",
+     "By visual inspection",
+     "Only the sign matters"
+    ],
+    "answer": "a",
+    "why": "KMC estimates have statistical error. V7 and V24 use z-scores: 1.4 sigma for D and well within 3 sigma for eta_rad."
+   },
+   {
+    "q": "V27 records events per second and solve times. What is it for?",
+    "options": [
+     "Choosing the GPU",
+     "Comparing with other codes' papers",
+     "Pass/fail validation",
+     "Detecting performance regressions on the same machine across versions"
+    ],
+    "answer": "d",
+    "why": "Throughput depends on the hardware, so V27 is recorded rather than graded, together with CPU count and library versions."
+   },
+   {
+    "q": "Which command re-runs every benchmark and rewrites BENCHMARKS.md?",
+    "options": [
+     "make bench",
+     "orchid roadmap",
+     "pytest",
+     "python validation/run_all.py --run"
+    ],
+    "answer": "d",
+    "why": "Without --run it only re-evaluates existing results. With IDs (for example --run V24 V25) it re-runs only those benchmarks."
+   }
+  ]
+ }
+}

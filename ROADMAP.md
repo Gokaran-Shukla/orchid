@@ -2,8 +2,6 @@
 
 This file is generated from `orchid/roadmap.py`; `orchid roadmap` prints it. Every item has an importable module, a validation benchmark (`validation/`) and tests.
 
-Status: **all 23 items done** (v0.1 to v0.4).
-
 ## v0.1: multiscale core
 
 | ID | Status | Item | Module | Validation |
@@ -29,7 +27,7 @@ Status: **all 23 items done** (v0.1 to v0.4).
 | R14 | done | Transient DD: CELIV, TPV, TPC, arbitrary V(t)/G(t) | `orchid.transient` | Juska CELIV formula; TPV small perturbation |
 | R15 | done | AMG-preconditioned ME and finite-size extrapolation | `orchid.master_equation` | 10-20x fewer CG iterations |
 
-## v0.3: device-physics completeness
+## v0.3: device-physics completeness, first principles, ML, parallel-in-space KMC
 
 | ID | Status | Item | Module | Validation |
 |---|---|---|---|---|
@@ -38,14 +36,19 @@ Status: **all 23 items done** (v0.1 to v0.4).
 | R18 | done | Small-signal impedance / admittance spectroscopy, IMPS, IMVS | `orchid.smallsignal` | insulator C=eps/L; SCLC C(0)=3/4 C_geo, f_max tau_dc = 0.72 |
 | R19 | done | 2D drift-diffusion for OFETs and bulk-heterojunction morphologies (sparse Newton, 15-colour Jacobian) | `orchid.dd2d` | OFET vs gradual-channel model (linear + saturation mobility) |
 | R20 | done | Dipole-emitter outcoupling (CPS / plane-wave expansion), ASTM G173 spectrum, refractiveindex.info n,k database | `orchid.optics` | CPS perfect-mirror formulas; BK7 n_d = 1.5168; AM1.5G = 1000 W/m^2 |
-
-## v0.4: first principles, machine learning, parallel-in-space KMC
-
-| ID | Status | Item | Module | Validation |
-|---|---|---|---|---|
 | R21 | done | Molecular morphologies + DFT transfer integrals (DIPRO/PySCF) + dipolar site energies on hopping graphs | `orchid.morphology` | graph = lattice ME exactly; DIPRO J_eff = half dimer splitting |
 | R22 | done | Gaussian-process surrogates of mu(T,p) trained on ORCHID data; exhaustive-grid Bayesian inversion | `orchid.ml` | held-out RMSE; truth inside 95 % credible intervals |
 | R23 | done | Parallel-in-space interacting KMC (synchronous sublattice), CPU threads + CUDA kernel | `orchid.sublattice_kmc` | agrees with serial Fenwick KMC; CUDA simulator test |
+
+## v0.4: concurrent excitons, unbiased parallel KMC, MD import, benchmarks, tutorials
+
+| ID | Status | Item | Module | Validation |
+|---|---|---|---|---|
+| R24 | done | Concurrent charge + exciton device KMC: one event loop, live TPQ/TTA, emission profile, EQE | `orchid.coupled_kmc` | exact bookkeeping; eta = kr/(kr+knr) within 3 sigma; J unchanged; vs v0.3 pipeline |
+| R25 | done | Time-window extrapolation (tau -> 0) for synchronous-sublattice KMC | `orchid.sublattice_kmc` | extrapolated mobility vs serial Fenwick KMC |
+| R26 | done | MD trajectory import (GROMACS .gro, extended XYZ), PBC-whole molecular centres, frame-averaged mobility | `orchid.morphology` | exact centres for PBC-split molecules; graph ME = lattice ME (3e-14) |
+| R27 | done | Benchmark harness: criteria for V1-V27, run_all, BENCHMARKS.md, throughput record, orchid bench | `orchid.cli` | 27 benchmarks evaluated against fixed tolerances |
+| R28 | done | 13 executed tutorial notebooks with exercises and 65-question quiz bank (orchid quiz) | `orchid.tutorials` | notebooks execute in CI-equivalent run; quiz answer keys tested |
 
 ## Parallel strategy
 
@@ -58,6 +61,6 @@ Status: **all 23 items done** (v0.1 to v0.4).
 
 ## Next steps (not yet scheduled)
 
-- Hardware scaling study on a cluster and GPUs (the code paths exist; only 2 CPU cores were available during development).
-- Exciton and charge events in a single concurrent device-KMC event loop.
-- DFT-level (larger basis) coupling database and automated morphology import from MD trajectories.
+- Hardware scaling study on a cluster and on GPUs. The code paths exist, but only 2 CPU cores were available during development.
+- Exciton dissociation into charge pairs inside the concurrent loop (organic solar cells), plus spin-resolved singlet/triplet excitons.
+- A DFT-level (larger basis) coupling database computed directly on imported MD frames.
