@@ -1,5 +1,7 @@
 # ORCHID
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24218257.svg)](https://doi.org/10.5281/zenodo.24218257)
+
 **O**rganic **R**ate-based **CH**arge-hopping & **I**ntegrated **D**evice simulator
 
 ORCHID simulates charge and exciton transport in disordered organic semiconductors
@@ -120,9 +122,25 @@ orchid parallel                      # show ranks, threads, GPU
 SI throughout (mobility in m²/Vs; multiply by 1e4 for cm²/Vs). Energies are in eV.
 Lattice codes work in units of the lattice constant `a`; `F_red = eFa` (eV).
 
-## Citing
+## Citing ORCHID
 
-If you use ORCHID, please cite this repository and the original method papers
-listed in `docs/slides/orchid_slides.pdf` (References).
+If ORCHID helps your work, please cite the software, together with the original method papers
+listed in `docs/slides/orchid_slides.pdf` (References):
+
+> G. Shukla, *ORCHID: Organic Rate-based CHarge-hopping and Integrated Device simulator*, version 0.4.0 (2026). Zenodo. https://doi.org/10.5281/zenodo.24218257
+
+```bibtex
+@software{shukla_orchid_2026,
+  author    = {Shukla, Gokaran},
+  title     = {ORCHID: Organic Rate-based CHarge-hopping and Integrated Device simulator},
+  version   = {0.4.0},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.24218257},
+  url       = {https://github.com/Gokaran-Shukla/orchid}
+}
+```
+
+GitHub's **"Cite this repository"** button (from `CITATION.cff`) gives the same reference in APA and BibTeX.
 
 MIT licence © 2026 Gokaran Shukla

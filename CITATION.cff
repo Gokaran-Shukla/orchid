@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use orchid in your work, please cite it as below."
+title: "ORCHID: Organic Rate-based CHarge-hopping and Integrated Device simulator"
+abstract: >-
+  ORCHID simulates charge and exciton transport in disordered organic semiconductors across
+  scales: hopping rates (Miller-Abrahams, Marcus, Marcus-Levich-Jortner, Forster, Dexter),
+  kinetic Monte Carlo and master-equation solvers, extended Gaussian disorder mobility laws,
+  and drift-diffusion device models for OLEDs, organic solar cells and single-carrier diodes,
+  with transfer-matrix optics. Device KMC couples charges and excitons with quenching and
+  annihilation, and every module is validated against analytical limits or published results.
+type: software
+authors:
+  - family-names: Shukla
+    given-names: Gokaran
+    orcid: "https://orcid.org/0000-0001-9332-3332"
+    affiliation: "King Abdullah University of Science and Technology (KAUST)"
+    email: gokaran.shukla@kaust.edu.sa
+doi: "10.5281/zenodo.24218257"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.24218257"
+    description: "Zenodo archive of version 0.4.0"
+repository-code: "https://github.com/Gokaran-Shukla/orchid"
+license: MIT
+version: 0.4.0
+date-released: 2026-11-14
+keywords:
+  - "organic semiconductors"
+  - "charge transport"
+  - "kinetic Monte Carlo"
+  - "OLED"
+  - "organic solar cells"
+  - "Gaussian disorder model"
+  - "Marcus theory"
+  - "drift-diffusion"
+  - "excitons"
