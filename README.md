@@ -1,5 +1,7 @@
 # ORCHID
 
+📘 **Complete manual (PDF):** [docs/orchid_manual.pdf](docs/orchid_manual.pdf) — documentation, tutorials and quizzes in one file.
+
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24218257.svg)](https://doi.org/10.5281/zenodo.24218257)
 
 **O**rganic **R**ate-based **CH**arge-hopping & **I**ntegrated **D**evice simulator
