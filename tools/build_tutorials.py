@@ -660,6 +660,8 @@ def main():
     sel = [a for a in sys.argv[1:] if a[:2].isdigit()]
     for name, nb in NB:
         if not sel or name[:2] in sel:
+            if not any('gs-watermark' in c.source for c in nb.cells):
+                nb.cells.insert(0, nbf.v4.new_markdown_cell("<!-- gs-watermark -->\n> **© 2026 Gokaran Shukla** · part of [orchid](https://github.com/Gokaran-Shukla/orchid) · MIT License — any reuse must keep this copyright notice and credit the author."))
             nbf.write(nb, os.path.join(OUT, name))
     if "--execute" in sys.argv:
         from nbclient import NotebookClient

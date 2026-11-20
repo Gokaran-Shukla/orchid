@@ -15,6 +15,9 @@ import json
 import os
 import textwrap
 
+_GS_NOTICE = "© 2026 Gokaran Shukla · github.com/Gokaran-Shukla/orchid · MIT License"  # gs-watermark
+
+
 _DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "quizzes.json")
 
 
@@ -83,6 +86,7 @@ def quiz(section, answers=None):
     sec = _key(section)
     if answers is None:
         print(_render_questions(sec))
+        print(_GS_NOTICE)
         return None
     score, n, lines = grade(sec, answers)
     print("\n".join(lines))

@@ -1,5 +1,9 @@
 # ORCHID tutorials
 
+<!-- gs-watermark -->
+> **© 2026 Gokaran Shukla** · part of [orchid](https://github.com/Gokaran-Shukla/orchid) · MIT License — any reuse must keep this copyright notice and credit the author.
+
+
 Thirteen notebooks cover one section of ORCHID each. Every notebook has learning goals, the theory with
 equations, runnable examples (stored with their outputs), exercises with hidden solutions, and a
 five-question quiz.
